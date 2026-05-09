@@ -1,0 +1,160 @@
+name: Fibonaccibooks Staging CD
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Generate .env
+        run: |
+          envsubst "`printf '${%s} ' $(sh -c "env|cut -d'=' -f1")`" < ./environments/example.env > ./environments/$NODE_ENV.env
+        env:
+          PORT: 3005
+          NODE_ENV: staging
+          APP_IDENTIFIER: fibonacci-staging
+          APP_TITLE: Fibonacci
+          API_PREFIX: api/v1
+          TZ: UTC
+
+          # Swagger
+          API_VERSION: 1.0.0
+          API_TITLE: Fibonacci Book & Such API Staging
+          API_DESCRIPTION: Fibonacci Book & Such API Staging
+
+          # Default DB
+          DB_TYPE: postgres
+          DB_HOST: ${{ secrets.HOST }}
+          DB_PORT: 5432
+          DB_USERNAME: insafbook
+          DB_PASSWORD: insafbook
+          DB_DATABASE: fibonaccibooks_db-stg
+          DB_SYNCHRONIZE: true
+          DB_LOGGING: false
+
+          # Security
+          CORS_ALLOWED_ORIGINS: http://localhost,http://[::1],http://[::1]:3005,https://fibo-api-stg.ichinglab.com,https://stg-fibonacci-web.vercel.app,https://panel-stg.fibonaccibookshop.com,https://stg.fibonaccibookshop.com,https://jafrin-admin-prod.vercel.app,https://jafrin-web-prod.vercel.app
+          RATE_LIMIT_TTL: 60000
+          RATE_LIMIT_MAX: 100
+
+          # Logger
+          LOG_FOLDER: logs
+
+          # JWT
+          JWT_SECRET: ssh-rsa AAAAB3NzaC1yc2EAAAdwADAQABAAwdwwABAQfC8kf3x3Wi9V3kMkYu9tjDwdwaSRD2cBjOgp3FQwdwU/Gndlced9WsaVNx3lgkbbS47sPpFMdQVSgemGbRqhaj9vUrD56+QOMn5HuxeAp5VMwwD$
+          JWT_SALT_ROUNDS: 10
+          JWT_EXPIRES_IN: 10d
+          JWT_REFRESH_TOKEN_EXPIRES_IN: 30d
+
+          # Auth
+          OTP_EXPIRES_IN: 5000
+
+          WEB_PANEL_LOGIN_LINK: https://stg-fibonaccibookshop.com/auth
+          INTERNAL_PANEL_LOGIN_LINK: https://panel-stg.fibonaccibookshop.com/auth
+
+          # Seed Database
+          SUPER_ADMIN_EMAIL: superadmin@fibonaccibooks.dev
+          SUPER_ADMIN_PASSWORD: 123456
+
+          #QUEUE
+          QUEUE_HOST: redis
+          QUEUE_PORT: 6379
+          QUEUE_PASSWORD: redis
+
+          # Cache
+          CACHE_API_DATA: false
+          CACHE_TTL: 60
+          CACHE_MAX: 100
+          CACHE_STORE_HOST: redis
+          CACHE_STORE_PORT: 6379
+          CACHE_STORE_PASSWORD: redis
+          CACHE_STORE_USERNAME: default
+
+          #SMTP
+          SMTP_HOST: smtp-relay.brevo.com
+          SMTP_PORT: 2525
+          SMTP_SECURE: false
+          SMTP_AUTH_USER: 7b8634001@smtp-brevo.com
+          SMTP_AUTH_PASS: r4HCV8GL7ywhP9BX
+          SMTP_EMAIL: hello@fibonaccibookshop.com
+
+          BKASH_TOKEN_URL: https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout/token/grant
+          BKASH_CREATE_URL: https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout/create
+          BKASH_EXECUTE_URL: https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout/execute
+          BKASH_PAYMENT_STATUS_URL: https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout/payment/status
+          BKASH_SEARCH_TRANSACTION_URL: https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout/general/searchTransaction
+          BKASH_REFUND_TRANSACTION_URL: https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout/payment/refund
+          BKASH_APP_KEY: 4f6o0cjiki2rfm34kfdadl1eqq
+          BKASH_APP_SECRET: 2is7hdktrekvrbljjh44ll3d9l1dtjo4pasmjvs5vl5qr3fug4b
+          BKASH_USERNAME: sandboxTokenizedUser02
+          BKASH_PASSWORD: sandboxTokenizedUser02@12345
+          BKASH_WEB_HOOK_URL: https://fibo-api-stg.ichinglab.com/api/v1/web/payment-gateway-requests/bkash/webhook
+
+          CORE_API_ENDPOINT: https://fibo-api-stg.ichinglab.com/api/v1
+          WEB_URL: https://stg.fibonaccibookshop.com
+
+          # SYSTEM CONFIG
+          PRODUCT_CODE_PREFIX: FIBO
+          MEMBERSHIP_CODE_PREFIX: FIBO
+          ODER_INVOICE_TEMPLATE: fibo-order-invoice
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+
+      - name: Install dependencies
+        run: yarn install --ignore-scripts
+
+      - name: Build the project
+        run: yarn run build
+        env:
+          CI: false
+
+      - name: Deploy Files to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
+          rm: true
+          source: './' # This will send all files, including the build directory
+          target: '/home/insafbook/fibonacci-api-stg/' # This will send all files, including the build directory
+          strip_components: 0
+
+  deploy-fibonacci-api-to-staging:
+    needs: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy api to DigitalOcean Droplet
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd /home/insafbook/fibonacci-api-stg/
+            echo "calling shutdown endpoint..."
+            docker stop fibo-api-stg || true
+            docker rm fibo-api-stg || true
+
+            echo "Building the image..."
+            docker build -t fibo-api-stg:local .
+
+            echo "starting server instance..."
+            docker run -e NODE_ENV=staging -d \
+              --restart always \
+              -dit --name fibo-api-stg --network insafbook_net1 \
+              -p 0.0.0.0:3005:3005 \
+              --name fibo-api-stg \
+              -v /home/insafbook/fibonacci-api-stg/dist:/app/dist \
+              fibo-api-stg:local
+
+            docker builder prune -f
+            docker image prune -f
+            echo "Deploy Done...."

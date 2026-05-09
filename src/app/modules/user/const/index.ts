@@ -1,0 +1,6 @@
+export enum ENUM_USER_MEMBERSHIP_STATUS {
+    PENDING = 'PENDING',
+    HOLD = 'HOLD',
+    CANCELLED = 'CANCELLED',
+    ACTIVE = 'ACTIVE'
+}

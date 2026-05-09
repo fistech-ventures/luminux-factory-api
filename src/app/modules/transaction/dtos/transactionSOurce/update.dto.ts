@@ -1,0 +1,25 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
+
+export class TransactionSourceUpdateDTO {
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: 'Office Rent',
+  })
+  @IsOptional()
+  @IsString()
+  readonly title!: string;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly isActive!: boolean;
+
+  @IsOptional()
+  readonly updatedBy?: any;
+}
