@@ -4,14 +4,14 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { IFileMeta } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { storageImageOptions } from '@src/shared';
-import { FileUploadService, IFileResponse } from '../../services/fileUpload.service';
+import { SupabaseFileUploadService, IFileResponse } from '../../services/supabaseFileUpload.service';
 import { Public } from '@src/app/decorators/publicRoute.decorator';
 
 @ApiTags('File Storage')
 @ApiBearerAuth()
 @Controller('web/files')
 export class FileStorageWebController {
-  constructor(private readonly fileUploadService: FileUploadService) { }
+  constructor(private readonly fileUploadService: SupabaseFileUploadService) { }
 
   @Public()
   @Post()
@@ -60,6 +60,6 @@ export class FileStorageWebController {
     }),
   )
   async uploadVideo(@UploadedFile() file: IFileMeta): Promise<IFileResponse> {
-    return this.fileUploadService.uploadToSpace({ file });
+    return this.fileUploadService.uploadToSupabase({ file });
   }
 }

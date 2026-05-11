@@ -8,10 +8,11 @@ import { FileStorageWebController } from './controllers/web/fileUpload.web.contr
 import { GalleryWebController } from './controllers/web/gallery.web.controller';
 import { Gallery } from './entities/gallery.entity';
 import { FileUploadService } from './services/fileUpload.service';
+import { SupabaseFileUploadService } from './services/supabaseFileUpload.service';
 import { GalleryService } from './services/gallery.service';
 
 const entities = [Gallery];
-const services = [FileUploadService, GalleryService];
+const services = [FileUploadService, SupabaseFileUploadService, GalleryService];
 const subscribers = [];
 
 const webControllers = [FileStorageWebController, GalleryWebController];

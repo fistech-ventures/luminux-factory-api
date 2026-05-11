@@ -12,11 +12,11 @@ import {
 } from '@src/shared/utils/dborm.utils';
 import { isNotEmptyObject } from 'class-validator';
 import { Between, DataSource, FindOneOptions, QueryRunner, Repository } from 'typeorm';
-import { FileUploadService } from '../../gallery/services/fileUpload.service';
 import { UserProfileCreateDTO } from '../dtos/userProfile/create.dto';
 import { UserProfileFilterDTO } from '../dtos/userProfile/filter.dto';
 import { UserProfileUpdateDTO, UserProfileVerifyDTO } from '../dtos/userProfile/update.dto';
 import { UserProfile } from '../entities/userProfile.entity';
+import { SupabaseFileUploadService } from '../../gallery/services/supabaseFileUpload.service';
 
 @Injectable()
 export class UserProfileService {
@@ -25,7 +25,7 @@ export class UserProfileService {
     private readonly repo: Repository<UserProfile>,
     private readonly dataSource: DataSource,
     private readonly htmlHelper: HtmlHelper,
-    private readonly fileUploadService: FileUploadService,
+    private readonly fileUploadService: SupabaseFileUploadService,
   ) { }
 
   async findById(id: string, options?: IFindBaseOptions<UserProfile>): Promise<UserProfile> {
