@@ -22,6 +22,7 @@ import RoleSeeder from './seeder/role.seeder';
 import UserSeeder from './seeder/user.seeder';
 import { Permission } from '@src/app/modules/acl/entities/permission.entity';
 import { RolePermission } from '@src/app/modules/acl/entities/rolePermission.entity';
+import { PermissionType } from '@src/app/modules/acl/entities/permissionType.entity';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -45,6 +46,7 @@ const dataSource = new DataSource({
     // City,
     DeliveryCharge,
     Permission,
+    PermissionType,
     RolePermission,
     Quote,
     GlobalConfig,
