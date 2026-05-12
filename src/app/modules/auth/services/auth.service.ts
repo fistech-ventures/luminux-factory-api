@@ -23,7 +23,7 @@ import { firstValueFrom } from 'rxjs';
 import { DataSource } from 'typeorm';
 import { Role } from '../../acl/entities/role.entity';
 import { RoleService } from '../../acl/services/role.service';
-import { FileUploadService } from '../../gallery/services/fileUpload.service';
+import { SupabaseFileUploadService } from '../../gallery/services/supabaseFileUpload.service';
 import { GlobalConfigService } from '../../globalConfig/services/globalConfig.service';
 import { EmailService } from '../../notification/services/email.service';
 import { SmsService } from '../../notification/services/sms.service';
@@ -61,7 +61,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly smsService: SmsService,
     private readonly globalConfigService: GlobalConfigService,
-    private readonly fileUploadService: FileUploadService,
+    private readonly fileUploadService: SupabaseFileUploadService,
     private readonly userProfileService: UserProfileService,
     @Inject(forwardRef(() => CartService))
     private readonly cartService: CartService,

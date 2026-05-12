@@ -89,6 +89,12 @@ export const ENV = {
     bucket: process.env.S3_BUCKET,
     folderPrefix: process.env.S3_FOLDER_PREFIX,
   },
+  supabase: {
+    url: process.env.SUPABASE_URL,
+    anonKey: process.env.SUPABASE_ANON_KEY,
+    serviceKey: process.env.SUPABASE_SERVICE_KEY,
+    bucket: process.env.SUPABASE_BUCKET,
+  },
   mail: {
     gmail: {
       clientId: '373266192637-l50tghol2up6unt1d8b5g8mp30b6cfbm.apps.googleusercontent.com',
