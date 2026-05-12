@@ -20,6 +20,8 @@ import DeliveryChargeSeeder from './seeder/deliveryCharge.seeder';
 import GlobalConfigSeeder from './seeder/globalConfig.seeder';
 import RoleSeeder from './seeder/role.seeder';
 import UserSeeder from './seeder/user.seeder';
+import { Permission } from '@src/app/modules/acl/entities/permission.entity';
+import { RolePermission } from '@src/app/modules/acl/entities/rolePermission.entity';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -42,6 +44,8 @@ const dataSource = new DataSource({
     Area,
     // City,
     DeliveryCharge,
+    Permission,
+    RolePermission,
     Quote,
     GlobalConfig,
     AnalyticsConfig,
