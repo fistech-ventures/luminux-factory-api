@@ -8,7 +8,7 @@ export default class AnalyticsConfigSeeder {
     const analyticsConfig = await this.dataSource.manager.find(AnalyticsConfig);
     if (analyticsConfig.length <= 0) {
       await this.dataSource.manager.save(AnalyticsConfig, {
-        umamiId: null,
+        trackingScripts: [],
       } satisfies AnalyticsConfig);
     }
   }

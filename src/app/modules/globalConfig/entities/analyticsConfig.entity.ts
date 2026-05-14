@@ -6,27 +6,6 @@ import { Column, Entity } from 'typeorm';
 export class AnalyticsConfig extends BaseEntity {
   public static readonly SEARCH_TERMS: string[] = [];
 
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  googleSiteVerification?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  bingSiteVerification?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  googleTagManagerCode?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  googleAnalyticsId?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  metaPixelId?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  metaAppId?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  metaMessengerId?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  umamiId?: string;
+  @Column({ type: ENUM_COLUMN_TYPES.JSONB, nullable: true, default: [] })
+  trackingScripts?: string[];
 }
