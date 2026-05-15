@@ -19,6 +19,8 @@ import { NoteModule } from './modules/note/note.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { CartModule } from './modules/cart/cart.module';
 import { OrderModule } from './modules/order/order.module';
+import { OffersModule } from './modules/offers/offers.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
 import { PaymentGatewayModule } from './modules/payment-gateway/paymentGateway.module';
 import { ProductModule } from './modules/product/product.module';
 import { PublicationModule } from './modules/publication/publication.module';
@@ -45,6 +47,8 @@ const MODULES = [
   PublicationModule,
   CartModule,
   OrderModule,
+  OffersModule,
+  CouponsModule,
   CMSModule,
   FormModule,
   SupportModule,
