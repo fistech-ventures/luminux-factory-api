@@ -1,0 +1,4 @@
+export enum ENUM_COUPON_DISCOUNT_TYPE {
+  FLAT = 'FLAT',
+  PERCENTAGE = 'PERCENTAGE',
+}
