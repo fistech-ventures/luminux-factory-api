@@ -7,6 +7,10 @@ import { Order } from './order.entity';
 export class OrderItem extends BaseEntity {
   public static readonly SEARCH_TERMS: string[] = ['code'];
 
+  // TODO: Add offerId field to link applied special offers
+  // @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, nullable: true })
+  // offerId?: string;
+
   @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 1 })
   quantity?: number;
 

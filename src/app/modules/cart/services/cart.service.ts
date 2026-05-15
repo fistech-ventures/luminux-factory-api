@@ -102,6 +102,11 @@ export class CartService extends BaseService<Cart> {
           //TODO
           // Remove this in future
 
+          // TODO: Integrate OfferResolutionService to apply special offers discounts
+          // Import and inject OfferResolutionService from offers module
+          // Call offerResolutionService.resolveForItem() for each cart item
+          // Apply the returned discount to the cart calculation
+
           // const vOpt = item.product.variantOptions.filter(
           //   (v) => v.id === item.variantOption.id
           // );

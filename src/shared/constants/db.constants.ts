@@ -87,6 +87,15 @@ export enum ENUM_TABLE_NAMES {
   SERVICE_PROVIDER = 'service_providers',
   PROVIDER_SERVICE_REQUESTS = 'provider_service_requests',
   NOTES = 'notes',
+
+  // Offers module tables
+  OFFERS = 'offers',
+  DISCOUNT_RULES = 'discount_rules',
+  OFFER_SCOPES = 'offer_scopes',
+
+  // Coupons module tables
+  COUPONS = 'coupons',
+  COUPON_USAGES = 'coupon_usages',
 }
 
 export enum ENUM_COLUMN_TYPES {
