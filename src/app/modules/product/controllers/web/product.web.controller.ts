@@ -30,7 +30,7 @@ export class ProductWebController {
     private readonly service: ProductService,
     private readonly productReviewService: ProductReviewService,
     private readonly productQuestionService: ProductQuestionService,
-  ) { }
+  ) {}
   RELATIONS: FindOptionsRelations<Product> = {
     author: true,
     translator: true,
@@ -39,7 +39,7 @@ export class ProductWebController {
     brand: true,
     variants: {
       variant: true,
-      variantOption: true
+      variantOption: true,
     },
     medias: { gallery: true },
     genres: { genre: true },
@@ -69,21 +69,20 @@ export class ProductWebController {
       delete query?.categoryId;
       delete query?.productCategoryId;
       query['categories'] = {
-        categoryId: In(query.productCategoryIds)
+        categoryId: In(query.productCategoryIds),
       };
     } else if (query?.productCategoryId) {
       delete query?.categoryId;
       query['categories'] = {
-        categoryId: query?.productCategoryId
+        categoryId: query?.productCategoryId,
       };
     }
-    delete query?.productTags
+    delete query?.productTags;
     delete query?.discountMax;
     delete query?.discountMin;
     delete query?.ratingPointAvgMax;
     delete query?.ratingPointAvgMin;
     delete query?.productCategoryId;
-    delete query?.productCategoryIds;
 
     return this.service.findAllBase(query, {
       select: {
@@ -103,18 +102,31 @@ export class ProductWebController {
         variants: true,
         ratingPointAvg: true,
         ratingCount: true,
+        categories: {
+          categoryId: true,
+          category: {
+            id: true,
+            title: true,
+            icon: true,
+            banner: true,
+            position: true,
+          },
+        },
       },
       relations: {
         variants: {
-          variantOption: true
-        }
-      }
+          variantOption: true,
+        },
+      },
     });
   }
 
   @Get(':id/has-ordered')
-  async checkById(@Param('id') id: string, @AuthUser() authUser: IAuthUser): Promise<SuccessResponse> {
-    return this.service.checkProductIfOrderdByUser(authUser.id, id)
+  async checkById(
+    @Param('id') id: string,
+    @AuthUser() authUser: IAuthUser,
+  ): Promise<SuccessResponse> {
+    return this.service.checkProductIfOrderdByUser(authUser.id, id);
   }
 
   @CacheKey('products:details')
@@ -158,8 +170,13 @@ export class ProductWebController {
   @UseInterceptors(CacheInterceptor)
   @Public()
   @Get(':id/questions')
-  async findQuestionsByProductId(@Param('id') id: string): Promise<SuccessResponse<ProductReview[]>> {
-    return this.productQuestionService.findAllBase({ productId: id, status: ENUM_PRODUCT_QUESTION_ANSWER_STATUS.PUBLISHED }, { relations: { answer: true } });
+  async findQuestionsByProductId(
+    @Param('id') id: string,
+  ): Promise<SuccessResponse<ProductReview[]>> {
+    return this.productQuestionService.findAllBase(
+      { productId: id, status: ENUM_PRODUCT_QUESTION_ANSWER_STATUS.PUBLISHED },
+      { relations: { answer: true } },
+    );
   }
 
   @CacheKey('products:details')
@@ -174,15 +191,21 @@ export class ProductWebController {
   @Public()
   @Post('find-by-ids')
   async findBulkByIds(@Body() payload: FilterBulkByIdsDTO): Promise<SuccessResponse<Product[]>> {
-    return this.service.findAllBase({ id: In(payload.ids) as any, limit: 50 }, { relations: this.RELATIONS });
+    return this.service.findAllBase(
+      { id: In(payload.ids) as any, limit: 50 },
+      { relations: this.RELATIONS },
+    );
   }
 
   @Post('reviews')
-  async createProductRating(@Body() body: ProductReviewCreateDTO, @AuthUser() authUser: IAuthUser): Promise<Product> {
+  async createProductRating(
+    @Body() body: ProductReviewCreateDTO,
+    @AuthUser() authUser: IAuthUser,
+  ): Promise<Product> {
     // const checkOrderData = await this.service.checkProductIfOrderdByUser(authUser.id, body.productId)
     // if (checkOrderData.data.hasOrdered)
     body['userId'] = authUser.id;
-    body['source'] = 'web'
+    body['source'] = 'web';
     return this.productReviewService.createOne(body, authUser);
     // else throw new BadRequestException('You must order & receieve the product to share review!')
   }
@@ -190,7 +213,7 @@ export class ProductWebController {
   @Public()
   @Post('questions')
   async createProductQuestion(@Body() body: ProductQuestionCreateDTO): Promise<ProductQuestion> {
-    body['source'] = 'web'
+    body['source'] = 'web';
     return this.productQuestionService.createOneBase(body);
   }
 }

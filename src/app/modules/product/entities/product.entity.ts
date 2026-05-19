@@ -166,6 +166,9 @@ export class Product extends BaseEntity {
   isNewArrived?: boolean;
 
   @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
+  isBestSeller?: boolean;
+
+  @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
   isFeatured?: boolean;
 
   @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
