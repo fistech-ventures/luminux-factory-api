@@ -117,6 +117,9 @@ export class ProductWebController {
         variants: {
           variantOption: true,
         },
+        categories: {
+          category: true,
+        },
       },
     });
   }
