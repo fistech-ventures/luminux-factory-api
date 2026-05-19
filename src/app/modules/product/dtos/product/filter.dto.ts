@@ -55,6 +55,14 @@ export class ProductFilterDTO {
     required: false,
   })
   @IsOptional()
+  readonly isBestSeller!: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    example: '',
+    required: false,
+  })
+  @IsOptional()
   readonly isFeatured!: boolean;
 
   @ApiProperty({

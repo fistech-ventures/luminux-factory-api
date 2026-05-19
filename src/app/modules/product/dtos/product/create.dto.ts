@@ -10,7 +10,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  ValidateNested
+  ValidateNested,
 } from 'class-validator';
 import { ENUM_PRODUCT_CONDITION, ENUM_PRODUCT_SEGMENT, ENUM_PRODUCT_STATUS } from '../../const';
 import { IAuthUser } from '@src/app/interfaces';
@@ -217,9 +217,9 @@ export class ProductCreateDTO {
     type: Object,
     required: false,
     example: {
-      isbn: "swjdw",
+      isbn: 'swjdw',
       page: 300,
-      flap: `The story is about Jim, a young boy who goes in search of treasure after finding a treasure map. Jim faces shipwreck, a pirate mutiny, and sword fights. Jim's tale is a rags-to-riches story of a young boy who overcomes the odds.`
+      flap: `The story is about Jim, a young boy who goes in search of treasure after finding a treasure map. Jim faces shipwreck, a pirate mutiny, and sword fights. Jim's tale is a rags-to-riches story of a young boy who overcomes the odds.`,
     },
   })
   @IsOptional()
@@ -411,6 +411,15 @@ export class ProductCreateDTO {
   @IsOptional()
   @IsBoolean()
   readonly isNewArrived!: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly isBestSeller!: boolean;
 
   @ApiProperty({
     type: Boolean,

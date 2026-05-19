@@ -440,6 +440,15 @@ export class ProductUpdateDTO {
   })
   @IsOptional()
   @IsBoolean()
+  readonly isBestSeller!: boolean;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
   readonly isFeatured!: boolean;
 
   @ApiProperty({
