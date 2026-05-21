@@ -77,15 +77,16 @@ export class ProductWebController {
       });
     }
     if (query?.productCategoryIds?.length) {
-      delete filterQuery?.categoryId;
-      delete filterQuery?.productCategoryId;
       filterQuery['categories'] = {
         categoryId: In(query.productCategoryIds),
       };
     } else if (query?.productCategoryId) {
-      delete filterQuery?.categoryId;
       filterQuery['categories'] = {
         categoryId: query?.productCategoryId,
+      };
+    } else if (query?.categoryId) {
+      filterQuery['categories'] = {
+        categoryId: query?.categoryId,
       };
     }
     delete filterQuery?.productTags;
@@ -94,6 +95,8 @@ export class ProductWebController {
     delete filterQuery?.ratingPointAvgMax;
     delete filterQuery?.ratingPointAvgMin;
     delete filterQuery?.productCategoryId;
+    delete filterQuery?.categoryId;
+    delete filterQuery?.productCategoryIds;
 
     // Handle isFavourite filter - global favorite flag
     if (query.isFavourite === true) {

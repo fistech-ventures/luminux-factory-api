@@ -578,15 +578,19 @@ export class ProductService extends BaseService<Product> {
       .take(limit);
 
     // if (tagIds.length) {
-    //   qb.leftJoin('p.tags', 'tag').orWhere('tag.tagId IN (:...tagIds)', { tagIds });
+    //   qb.leftJoin('p.tags', 'tag').andWhere('tag.tagId IN (:...tagIds)', { tagIds });
     // }
-    if (product.type === ENUM_PRODUCT_TYPE.BOOK && genreIds.length) {
-      qb.leftJoin('p.genres', 'genre').orWhere('genre.genreId IN (:...genreIds)', { genreIds });
+    
+    // Filter by same categories (AND condition)
+    if (categoryIds.length) {
+      qb.leftJoin('p.categories', 'pc')
+        .andWhere('pc.categoryId IN (:...categoryIds)', { categoryIds });
     }
 
-    // Always fallback to same category
-    if (categoryIds.length) {
-      qb.orWhere('p.categoryId IN (:...categoryIds)', { categoryIds });
+    // For BOOK type, also filter by genres (AND condition)
+    if (product.type === ENUM_PRODUCT_TYPE.BOOK && genreIds.length) {
+      qb.leftJoin('p.genres', 'pg')
+        .andWhere('pg.genreId IN (:...genreIds)', { genreIds });
     }
 
     // Step 3: Faster randomness
