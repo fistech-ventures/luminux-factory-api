@@ -536,8 +536,7 @@ export class AuthService {
     const state = JSON.stringify({ provider: 'facebook', ...query });
     const scopes = ['email'];
     const authorizationUrl = `https://www.facebook.com/${ENV.facebook.apiVersion}/dialog/oauth?client_id=${ENV.facebook.clientId
-      }&redirect_uri=${ENV.facebook.redirectUrl}&scope=${scopes.join(',')}&state=${state}&config_id=${ENV.facebook.configId
-      }`;
+      }&redirect_uri=${ENV.facebook.redirectUrl}&scope=${scopes.join(',')}&state=${state}${ENV.facebook.configId ? `&config_id=${ENV.facebook.configId}` : ''}`;
     // console.log('🚀 ~ AuthService ~ facebookAuthRequest ~ authorizationUrl:', authorizationUrl);
     return authorizationUrl;
   }
