@@ -82,6 +82,30 @@ export class ProductFilterDTO {
   readonly isForPreOrder!: boolean;
 
   @ApiProperty({
+    type: Boolean,
+    required: false,
+    description: 'Filter products that are in user\'s wishlist/favorites',
+  })
+  @IsOptional()
+  readonly isFavourite!: boolean;
+
+  @ApiProperty({
+    type: Number,
+    description: 'Minimum price (saleAmount)',
+    required: false,
+  })
+  @IsOptional()
+  readonly minPrice!: number;
+
+  @ApiProperty({
+    type: Number,
+    description: 'Maximum price (saleAmount)',
+    required: false,
+  })
+  @IsOptional()
+  readonly maxPrice!: number;
+
+  @ApiProperty({
     type: Number,
     description: '25',
     required: false,

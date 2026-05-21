@@ -9,10 +9,13 @@ export class HeroBanner extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 250, nullable: false, unique: true })
   title?: string;
 
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 500, nullable: false })
+  description?: string;
+
   @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: false })
   url?: string;
 
-  @Column({ type: ENUM_COLUMN_TYPES.TEXT, default: "#", nullable: false })
+  @Column({ type: ENUM_COLUMN_TYPES.TEXT, default: '#', nullable: false })
   redirectUrl?: string;
 
   @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false })

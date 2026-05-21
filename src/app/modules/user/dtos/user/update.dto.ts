@@ -7,6 +7,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   ValidateNested,
 } from 'class-validator';
@@ -68,6 +69,15 @@ export class UpdateUserDTO {
   @IsOptional()
   @IsString()
   readonly password!: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: 'https://example.com/avatar.jpg',
+  })
+  @IsOptional()
+  @IsUrl()
+  readonly avatar!: string;
 
   @ApiProperty({
     type: [UpdateRolesDTO],
