@@ -14,6 +14,15 @@ export class HeroBannerCreateDTO {
   @ApiProperty({
     type: String,
     required: true,
+    example: 'We offer a wide range of books for all ages and interests.',
+  })
+  @IsNotEmpty()
+  @IsString()
+  readonly description!: string;
+
+  @ApiProperty({
+    type: String,
+    required: true,
     example: 'https://stg.fibonaccibookshop.com/images/banner.jpg',
   })
   @IsNotEmpty()

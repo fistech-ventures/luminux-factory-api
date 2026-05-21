@@ -1,4 +1,4 @@
-import { Body, Controller, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Query, Request, Response, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser } from '@src/app/decorators';
 import { Public } from '@src/app/decorators/publicRoute.decorator';
@@ -6,6 +6,8 @@ import { IAuthUser, ILginResponse } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { ENUM_ACL_DEFAULT_ROLES } from '@src/shared';
 import { ChangePasswordDTO } from '../../dtos/changePassword.dto';
+import { FacebookAuthRequestDTO } from '../../dtos/facebookAuthRequest.dto';
+import { GoogleAuthRequestDTO } from '../../dtos/googleAuthRequest.dto';
 import { LoginDTO } from '../../dtos/login.dto';
 import { RefreshTokenDTO } from '../../dtos/refreshToken.dto';
 import { RegisterDTO } from '../../dtos/register.dto';
@@ -16,6 +18,8 @@ import { VerifyOtpDTO } from '../../dtos/verifyOtp.dto';
 import { VerifyResetPasswordDTO } from '../../dtos/verifyResetPassword.dto';
 import { QuickRegistrationDTO } from '../../dtos/quickRegistration.dto';
 import { AuthService } from '../../services/auth.service';
+import { FacebookOAuthGuard } from '../../guards/facebook.guard';
+import { GoogleOAuthGuard } from '../../guards/google.guard';
 
 @ApiTags('Auth')
 @ApiBearerAuth()
@@ -23,48 +27,48 @@ import { AuthService } from '../../services/auth.service';
 export class AuthWebController {
   constructor(private readonly service: AuthService) { }
 
-  // @Public()
-  // @Get('google')
-  // async googleAuthRequest(@Query() query: GoogleAuthRequestDTO, @Res() res): Promise<void> {
-  //   const authorizationUrl = await this.service.googleAuthRequest({
-  //     ...query,
-  //     role: ENUM_ACL_DEFAULT_ROLES.WORKER,
-  //   });
-  //   res.redirect(authorizationUrl);
-  // }
+  @Public()
+  @Get('google')
+  async googleAuthRequest(@Query() query: GoogleAuthRequestDTO, @Response() res): Promise<void> {
+    const authorizationUrl = await this.service.googleAuthRequest({
+      ...query,
+      role: ENUM_ACL_DEFAULT_ROLES.CUSTOMER,
+    });
+    res.redirect(authorizationUrl);
+  }
 
-  // @Public()
-  // @Get('google-redirect')
-  // @UseGuards(GoogleOAuthGuard)
-  // async googleAuthRedirect(@Request() req, @Response() res): Promise<void> {
-  //   const { user } = req;
-  //   const { state } = req.query;
-  //   const responseData = await this.service.googleLogin(user, state);
-  //   res.redirect(responseData.callBackUrl);
-  // }
+  @Public()
+  @Get('google-redirect')
+  @UseGuards(GoogleOAuthGuard)
+  async googleAuthRedirect(@Request() req, @Response() res): Promise<void> {
+    const { user } = req;
+    const { state } = req.query;
+    const responseData = await this.service.googleLogin(user, state);
+    res.redirect(responseData.callBackUrl);
+  }
 
-  // @Public()
-  // @Get('facebook')
-  // async facebookAuthRequest(
-  //   @Query() query: FacebookAuthRequestDTO,
-  //   @Response() res,
-  // ): Promise<void> {
-  //   const authorizationUrl = await this.service.facebookAuthRequest({
-  //     ...query,
-  //     role: ENUM_ACL_DEFAULT_ROLES.WORKER,
-  //   });
-  //   res.redirect(authorizationUrl);
-  // }
+  @Public()
+  @Get('facebook')
+  async facebookAuthRequest(
+    @Query() query: FacebookAuthRequestDTO,
+    @Response() res,
+  ): Promise<void> {
+    const authorizationUrl = await this.service.facebookAuthRequest({
+      ...query,
+      role: ENUM_ACL_DEFAULT_ROLES.CUSTOMER,
+    });
+    res.redirect(authorizationUrl);
+  }
 
-  // @Public()
-  // @Get('facebook-redirect')
-  // @UseGuards(FacebookOAuthGuard)
-  // async facebookAuthRedirect(@Request() req, @Response() res): Promise<void> {
-  //   const { user } = req;
-  //   const { state } = req.query;
-  //   const responseData = await this.service.facebookLogin(user, state);
-  //   res.redirect(responseData.callBackUrl);
-  // }
+  @Public()
+  @Get('facebook-redirect')
+  @UseGuards(FacebookOAuthGuard)
+  async facebookAuthRedirect(@Request() req, @Response() res): Promise<void> {
+    const { user } = req;
+    const { state } = req.query;
+    const responseData = await this.service.facebookLogin(user, state);
+    res.redirect(responseData.callBackUrl);
+  }
 
   @Public()
   @Post('validate')
