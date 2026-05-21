@@ -178,6 +178,9 @@ export class Product extends BaseEntity {
   isForPreOrder?: boolean;
 
   @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
+  isFavorite?: boolean;
+
+  @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
   hasVariant?: boolean;
 
   @OneToMany(() => ProductVariantOption, (e) => e.product)

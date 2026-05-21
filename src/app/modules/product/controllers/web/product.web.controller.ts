@@ -51,40 +51,57 @@ export class ProductWebController {
   @Public()
   @Get()
   async findAll(@Query() query: ProductFilterDTO): Promise<SuccessResponse<Product[]>> {
+    const filterQuery: any = { ...query };
+
     if (query?.discountMin && query?.discountMax) {
-      query['discountPercentage'] = Between(query?.discountMin, query?.discountMax);
+      filterQuery['discountPercentage'] = Between(query?.discountMin, query?.discountMax);
     }
     if (query?.ratingPointAvgMin && query?.ratingPointAvgMax) {
-      query['ratingPointAvg'] = Between(query?.ratingPointAvgMin, query?.ratingPointAvgMax);
+      filterQuery['ratingPointAvg'] = Between(query?.ratingPointAvgMin, query?.ratingPointAvgMax);
     }
-    query['isActive'] = true;
-    query['status'] = ENUM_PRODUCT_STATUS.PUBLISHED;
+    if (query?.minPrice && query?.maxPrice) {
+      filterQuery['saleAmount'] = Between(query?.minPrice, query?.maxPrice);
+    } else if (query?.minPrice) {
+      filterQuery['saleAmount'] = Raw((alias) => `${alias} >= :minPrice`, { minPrice: query?.minPrice });
+    } else if (query?.maxPrice) {
+      filterQuery['saleAmount'] = Raw((alias) => `${alias} <= :maxPrice`, { maxPrice: query?.maxPrice });
+    }
+    delete filterQuery?.minPrice;
+    delete filterQuery?.maxPrice;
+    filterQuery['isActive'] = true;
+    filterQuery['status'] = ENUM_PRODUCT_STATUS.PUBLISHED;
 
     if (query.productTags?.length) {
-      query['tags'] = Raw((alias) => `${alias} @> :tags`, {
+      filterQuery['tags'] = Raw((alias) => `${alias} @> :tags`, {
         tags: JSON.stringify(query.productTags),
       });
     }
     if (query?.productCategoryIds?.length) {
-      delete query?.categoryId;
-      delete query?.productCategoryId;
-      query['categories'] = {
+      delete filterQuery?.categoryId;
+      delete filterQuery?.productCategoryId;
+      filterQuery['categories'] = {
         categoryId: In(query.productCategoryIds),
       };
     } else if (query?.productCategoryId) {
-      delete query?.categoryId;
-      query['categories'] = {
+      delete filterQuery?.categoryId;
+      filterQuery['categories'] = {
         categoryId: query?.productCategoryId,
       };
     }
-    delete query?.productTags;
-    delete query?.discountMax;
-    delete query?.discountMin;
-    delete query?.ratingPointAvgMax;
-    delete query?.ratingPointAvgMin;
-    delete query?.productCategoryId;
+    delete filterQuery?.productTags;
+    delete filterQuery?.discountMax;
+    delete filterQuery?.discountMin;
+    delete filterQuery?.ratingPointAvgMax;
+    delete filterQuery?.ratingPointAvgMin;
+    delete filterQuery?.productCategoryId;
 
-    return this.service.findAllBase(query, {
+    // Handle isFavourite filter - global favorite flag
+    if (query.isFavourite === true) {
+      filterQuery['isFavorite'] = true;
+    }
+    delete filterQuery?.isFavourite;
+
+    return this.service.findAllBase(filterQuery, {
       select: {
         id: true,
         title: true,
@@ -218,5 +235,14 @@ export class ProductWebController {
   async createProductQuestion(@Body() body: ProductQuestionCreateDTO): Promise<ProductQuestion> {
     body['source'] = 'web';
     return this.productQuestionService.createOneBase(body);
+  }
+
+  @Public()
+  @Post(':id/toggle-favorite')
+  async toggleFavorite(@Param('id') id: string): Promise<SuccessResponse<Product>> {
+    const product = await this.service.findByIdBase(id);
+    product.isFavorite = !product.isFavorite;
+    await this.service.repo.save(product);
+    return new SuccessResponse('Product favorite status updated', product);
   }
 }
