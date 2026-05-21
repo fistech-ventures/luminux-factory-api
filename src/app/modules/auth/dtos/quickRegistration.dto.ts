@@ -13,12 +13,12 @@ export class QuickRegistrationDTO {
 
   @ApiProperty({
     type: String,
-    required: true,
+    required: false,
     example: '8801312458778',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  readonly phoneNumber!: string;
+  readonly phoneNumber?: string;
 
   @ApiProperty({
     type: String,

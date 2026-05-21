@@ -232,11 +232,24 @@ export class AuthService {
 
     const user = await this.userService.findOne({
       where: { id: authUser.id as any },
-      select: ['id', 'fullName', 'email', 'password', 'phoneNumber'],
+      select: ['id', 'fullName', 'email', 'password', 'phoneNumber', 'authProvider'],
     });
 
     if (!user) {
       throw new BadRequestException('User does not exists');
+    }
+
+    // For social users who haven't set a password yet, skip old password verification
+    const isSocialUser = user.authProvider === ENUM_AUTH_PROVIDERS.GOOGLE || user.authProvider === ENUM_AUTH_PROVIDERS.FACEBOOK;
+    if (isSocialUser) {
+      // Allow password change without old password verification for social users
+      const updatedUser = await this.userService.saveOne({
+        id: user.id,
+        password: newPassword,
+      });
+      return this.loginResponse(updatedUser, {
+        message: 'Password set successfully. You can now login with email/password.',
+      });
     }
 
     const isPasswordMatched = await this.bcryptHelper.compareHash(oldPassword, user.password);
@@ -467,6 +480,7 @@ export class AuthService {
           authProvider: ENUM_AUTH_PROVIDERS.GOOGLE,
           password: Crypto.randomBytes(20).toString('hex'),
           isVerified: true,
+          avatar: userData.picture,
         };
         const createdUser = await queryRunner.manager.save(Object.assign(new User(), newUserData));
 
@@ -557,11 +571,12 @@ export class AuthService {
       const queryRunner = await startTransaction(this.dataSource);
       try {
         const newUserData: User = {
-          fullName: userData.fullName,
+          fullName: userData.firstName,
           email: userData.email,
           authProvider: ENUM_AUTH_PROVIDERS.FACEBOOK,
           password: Crypto.randomBytes(20).toString('hex'),
           isVerified: true,
+          avatar: userData.picture,
         };
         const createdUser = await queryRunner.manager.save(Object.assign(new User(), newUserData));
 
