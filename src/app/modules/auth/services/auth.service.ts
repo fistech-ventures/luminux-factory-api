@@ -46,6 +46,7 @@ import { UserService } from './../../user/services/user.service';
 import { ChangePasswordDTO } from './../dtos/changePassword.dto';
 import { QuickRegistrationDTO } from './../dtos/quickRegistration.dto';
 import { CartService } from './../../cart/services/cart.service';
+import { UserWishlistService } from './../../user/services/userWishlist.service';
 
 @Injectable()
 export class AuthService {
@@ -65,6 +66,8 @@ export class AuthService {
     private readonly userProfileService: UserProfileService,
     @Inject(forwardRef(() => CartService))
     private readonly cartService: CartService,
+    @Inject(forwardRef(() => UserWishlistService))
+    private readonly userWishlistService: UserWishlistService,
   ) { }
 
   async loginResponse(
@@ -328,16 +331,33 @@ export class AuthService {
     if (payload.guestCartItems && payload.guestCartItems.length > 0) {
       try {
         const guestCartMergePayload = { guestCartItems: payload.guestCartItems };
-        const authUser = { 
-          id: createdUser.id, 
-          email: createdUser.email, 
-          fullName: createdUser.fullName, 
-          phoneNumber: createdUser.phoneNumber 
+        const authUser = {
+          id: createdUser.id,
+          email: createdUser.email,
+          fullName: createdUser.fullName,
+          phoneNumber: createdUser.phoneNumber
         };
         await this.cartService.mergeGuestCartToUserCart(guestCartMergePayload, authUser);
       } catch (error) {
         console.error('Cart merge failed during registration:', error);
         // Continue with registration even if cart merge fails
+      }
+    }
+
+    // Handle guest wishlist merge if provided
+    if (payload.guestWishlistItems && payload.guestWishlistItems.length > 0) {
+      try {
+        const guestWishlistMergePayload = { guestWishlistItems: payload.guestWishlistItems };
+        const authUser = {
+          id: createdUser.id,
+          email: createdUser.email,
+          fullName: createdUser.fullName,
+          phoneNumber: createdUser.phoneNumber
+        };
+        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
+      } catch (error) {
+        console.error('Wishlist merge failed during registration:', error);
+        // Continue with registration even if wishlist merge fails
       }
     }
 
@@ -396,6 +416,18 @@ export class AuthService {
       } catch (error) {
         console.error('Cart merge failed during login:', error);
         // Continue with login even if cart merge fails
+      }
+    }
+
+    // Handle guest wishlist merge if provided
+    if (payload.guestWishlistItems && payload.guestWishlistItems.length > 0) {
+      try {
+        const guestWishlistMergePayload = { guestWishlistItems: payload.guestWishlistItems };
+        const authUser = { id: user.id, email: user.email, fullName: user.fullName, phoneNumber: user.phoneNumber };
+        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
+      } catch (error) {
+        console.error('Wishlist merge failed during login:', error);
+        // Continue with login even if wishlist merge fails
       }
     }
 

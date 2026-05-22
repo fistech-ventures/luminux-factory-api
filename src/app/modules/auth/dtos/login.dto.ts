@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { GuestCartItemDTO } from '../../cart/dtos/cart/guest-cart.dto';
+import { GuestWishlistItemDTO } from '../../user/dtos/userWishlist/guest-wishlist.dto';
 
 export class LoginDTO {
   @ApiProperty({
@@ -52,4 +53,15 @@ export class LoginDTO {
   @ValidateNested({ each: true })
   @Type(() => GuestCartItemDTO)
   readonly guestCartItems?: GuestCartItemDTO[];
+
+  @ApiProperty({
+    type: [GuestWishlistItemDTO],
+    required: false,
+    description: 'Guest wishlist items to merge with user wishlist after login'
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GuestWishlistItemDTO)
+  readonly guestWishlistItems?: GuestWishlistItemDTO[];
 }
