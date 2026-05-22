@@ -6,18 +6,14 @@ import { Cart } from './entities/cart.entity';
 import { CartItem } from './entities/cartItem.entity';
 import { CartService } from './services/cart.service';
 import { CartWebController } from './controllers/web/cart.web.controller';
-import { GuestCartWebController } from './controllers/web/guest-cart.web.controller';
 import { CartInternalController } from './controllers/internal/cart.internal.controller';
 
 const entities = [Cart, CartItem];
 const services = [CartService];
 const subscribers = [];
-const webControllers = [CartWebController, GuestCartWebController];
+const webControllers = [CartWebController];
 const internalControllers = [CartInternalController];
-const modules = [
-  UserModule,
-  forwardRef(() => ProductModule)
-];
+const modules = [UserModule, forwardRef(() => ProductModule)];
 
 @Module({
   imports: [TypeOrmModule.forFeature(entities), ...modules],
@@ -25,4 +21,4 @@ const modules = [
   exports: [...services, ...subscribers],
   controllers: [...internalControllers, ...webControllers],
 })
-export class CartModule { }
+export class CartModule {}
