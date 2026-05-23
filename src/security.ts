@@ -16,7 +16,7 @@ export function setupSecurity(app: INestApplication): void {
   // Global security HTTP headers
   app.use(
     helmet({
-      contentSecurityPolicy: {
+      contentSecurityPolicy: ENV.isDevelopment ? false : {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'", 'trusted-domain.com'],
