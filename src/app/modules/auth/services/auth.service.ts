@@ -491,6 +491,8 @@ export class AuthService {
   ): Promise<{
     callBackUrl: string;
   }> {
+    console.info('🚀 ~ Google Login State:', state);
+    console.info('🚀 ~ Google Login userData:', userData);
     if (!userData) {
       throw new BadRequestException('No user from google');
     }
@@ -499,6 +501,7 @@ export class AuthService {
       provider: string;
       role?: string;
     };
+    console.info('🚀 ~ Google Login additionalData:', additionalData);
     const isExist = await this.userService.findOne({
       where: { email: userData.email },
     });
@@ -557,7 +560,10 @@ export class AuthService {
       }
     }
 
-    const callBackUrl = `${additionalData.webRedirectUrl}?token=${userData?.accessToken}&provider=${additionalData.provider}`;
+    // Generate backend JWT token instead of using Google access token
+    const loginResponse = await this.loginResponse(newCreatedUser);
+    console.info('🚀 ~ Backend JWT Token:', loginResponse.data.accessToken);
+    const callBackUrl = `${additionalData.webRedirectUrl}?token=${loginResponse.data.accessToken}&provider=${additionalData.provider}`;
 
     return {
       callBackUrl,
@@ -654,7 +660,9 @@ export class AuthService {
       }
     }
 
-    const callBackUrl = `${additionalData.webRedirectUrl}?token=${userData?.accessToken}&provider=${additionalData.provider}`;
+    // Generate backend JWT token instead of using Facebook access token
+    const loginResponse = await this.loginResponse(newCreatedUser);
+    const callBackUrl = `${additionalData.webRedirectUrl}?token=${loginResponse.data.accessToken}&provider=${additionalData.provider}`;
 
     return {
       callBackUrl,
