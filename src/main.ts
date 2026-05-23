@@ -34,7 +34,7 @@ async function bootstrap(): Promise<void> {
   if (!ENV.security.skipSecuirity) setupSecurity(app);
   setupSwagger(app);
 
-  await app.listen(ENV.port);
+  await app.listen(ENV.port, '0.0.0.0');
   console.warn(
     `\n\ ${ENV.appTitle} API ===>>\n\nNODE_VERSION: v22.12.0\nNODE_ENV: ${ENV.env}\nRUNNING_ON: ${await app.getUrl()}\nAPI_DOCUMENTATION: ${await app.getUrl()}/docs\n\n`,
   );
