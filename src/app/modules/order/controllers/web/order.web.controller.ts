@@ -84,4 +84,10 @@ export class OrderWebController {
     body['source'] = ENUM_ORDER_SOURCE.WEBSITE
     return this.service.createQuickOrder(body);
   }
+
+  @Public()
+  @Get(':id/complete')
+  async completeOrder(@Param('id') id: string): Promise<Order> {
+    return this.service.findOneBase({ id }, { relations: this.RELATIONS });
+  }
 }

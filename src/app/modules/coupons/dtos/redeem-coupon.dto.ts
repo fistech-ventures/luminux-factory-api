@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
-export class ApplyCouponDto {
+export class RedeemCouponDto {
   @ApiProperty({
     type: String,
     required: true,
@@ -21,19 +21,20 @@ export class ApplyCouponDto {
   readonly userId?: string;
 
   @ApiProperty({
-    type: Number,
+    type: String,
     required: false,
-    description: 'Cart total amount',
+    description: 'Order ID',
   })
   @IsOptional()
-  @IsNumber()
-  readonly cartTotal?: number;
+  @IsString()
+  readonly orderId?: string;
 
   @ApiProperty({
-    type: [Object],
-    required: false,
-    description: 'Cart items array',
+    type: Number,
+    required: true,
+    description: 'Discount amount to apply',
   })
-  @IsOptional()
-  readonly cartItems?: any[];
+  @IsNotEmpty()
+  @IsNumber()
+  readonly discountAmount!: number;
 }

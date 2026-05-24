@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BaseFilterDTO } from '@src/app/base';
-import { IsBooleanString, IsOptional, IsString } from 'class-validator';
+import { IsBooleanString, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UserAddressFilterDTO extends BaseFilterDTO {
   @ApiProperty({
@@ -10,7 +11,8 @@ export class UserAddressFilterDTO extends BaseFilterDTO {
     required: false,
   })
   @IsOptional()
-  @IsString()
+  @IsNumber()
+  @Type(() => Number)
   readonly limit: number = 10;
 
   @ApiProperty({
@@ -20,7 +22,8 @@ export class UserAddressFilterDTO extends BaseFilterDTO {
     required: false,
   })
   @IsOptional()
-  @IsString()
+  @IsNumber()
+  @Type(() => Number)
   readonly page: number = 1;
 
   @ApiProperty({

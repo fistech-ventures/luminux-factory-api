@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base';
 import { HtmlHelper } from '@src/app/helpers';
 import dtoToModelMapper from '@src/app/helpers/dtoToModelMapper';
-import { FileUploadHelper } from '@src/app/helpers/fileUpload.helper';
 import { PdfGeneratorHelper } from '@src/app/helpers/pdfGenerator.helper';
+import { SupabaseUploadHelper } from '@src/app/helpers/supabaseUpload.helper';
 import { IAuthUser, IFindBaseOptions } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { ENV } from '@src/env';
@@ -55,7 +55,7 @@ export class OrderService extends BaseService<Order> {
     private readonly orgTransactionService: OrgTransactionService,
     private readonly smsService: SmsService,
     private readonly pdfGeneratorHelper: PdfGeneratorHelper,
-    private readonly fileUploadHelper: FileUploadHelper,
+    private readonly supabaseUploadHelper: SupabaseUploadHelper,
     private readonly htmlHelper: HtmlHelper,
     // private readonly orderStatusService: OrderStatusService,
   ) {
@@ -305,7 +305,7 @@ export class OrderService extends BaseService<Order> {
       );
       const pdf = await this.pdfGeneratorHelper.createPDF(htmlContent);
 
-      const pdfLink = await this.fileUploadHelper.uploadBinary(
+      const pdfLink = await this.supabaseUploadHelper.uploadBinary(
         ENV.systemConfig.orderInvoiceTemplate,
         pdf,
         `${invoiceCode}-${ENV.systemConfig.orderInvoiceTemplate}-${Date.now()}.pdf`,
@@ -329,14 +329,14 @@ export class OrderService extends BaseService<Order> {
       await queryRunner.manager.save(Cart, { id: customerData?.activeCartId, status: 'inactive' });
       await queryRunner.manager.save(User, { id: customerData.id, activeCartId: null });
       await queryRunner.commitTransaction();
-      this.smsService.sendSmsThroughDefaultGateway({
-        recipient: savedOrder.address.phoneNumber, message: `Dear ${savedOrder.address.fullName},
-Your Order has been Confirmed.
-Thanks for choosing Fibonacci, Happy Reading!
-Order No: ${savedOrder.code}
-Total Amount: ${savedOrder.grandTotal}
-To view your invoice click- ${ENV.externalUrls.webUrl}/user-invoice/${invoiceCode}`
-      })
+      // this.smsService.sendSmsThroughDefaultGateway({
+      //   recipient: savedOrder.address.phoneNumber, message: `Dear ${savedOrder.address.fullName},
+      // Your Order has been Confirmed.
+      // Thanks for choosing Fibonacci, Happy Reading!
+      // Order No: ${savedOrder.code}
+      // Total Amount: ${savedOrder.grandTotal}
+      // To view your invoice click- ${ENV.externalUrls.webUrl}/user-invoice/${invoiceCode}`
+      // })
 
       return this._repo.findOne({ where: { id: savedOrder.id }, relations: { items: true, userInvoice: true } });
     } catch (err) {
@@ -573,7 +573,7 @@ To view your invoice click- ${ENV.externalUrls.webUrl}/user-invoice/${invoiceCod
       );
       const pdf = await this.pdfGeneratorHelper.createPDF(htmlContent);
 
-      const pdfLink = await this.fileUploadHelper.uploadBinary(
+      const pdfLink = await this.supabaseUploadHelper.uploadBinary(
         ENV.systemConfig.orderInvoiceTemplate,
         pdf,
         `${invoiceCode}-${ENV.systemConfig.orderInvoiceTemplate}-${Date.now()}.pdf`,
@@ -594,15 +594,15 @@ To view your invoice click- ${ENV.externalUrls.webUrl}/user-invoice/${invoiceCod
       } satisfies Partial<Order>);
 
       await queryRunner.commitTransaction();
-      this.smsService.sendSmsThroughDefaultGateway({
-        recipient: savedOrder.address.phoneNumber,
-        message: `Dear ${savedOrder.address.fullName},
-Your Order has been Confirmed.
-Thanks for choosing Fibonacci, Happy Reading!
-Order No: ${savedOrder.code}
-Total Amount: ${savedOrder.grandTotal}
-To view your invoice click- ${ENV.externalUrls.webUrl}/user-invoice/${invoiceCode}`
-      })
+      // this.smsService.sendSmsThroughDefaultGateway({
+      //   recipient: savedOrder.address.phoneNumber,
+      //   message: `Dear ${savedOrder.address.fullName},
+      // Your Order has been Confirmed.
+      // Thanks for choosing Fibonacci, Happy Reading!
+      // Order No: ${savedOrder.code}
+      // Total Amount: ${savedOrder.grandTotal}
+      // To view your invoice click- ${ENV.externalUrls.webUrl}/user-invoice/${invoiceCode}`
+      // })
       return this._repo.findOne({ where: { id: savedOrder.id }, relations: { items: true, userInvoice: true } });
     } catch (err) {
       console.error("🚀 ~ OrderService ~ createQuickOrder ~ err:", err)
@@ -974,7 +974,7 @@ To view your invoice click- ${ENV.externalUrls.webUrl}/user-invoice/${invoiceCod
     );
     const pdf = await this.pdfGeneratorHelper.createPDF(htmlContent);
 
-    const pdfLink = await this.fileUploadHelper.uploadBinary(
+    const pdfLink = await this.supabaseUploadHelper.uploadBinary(
       ENV.systemConfig.orderInvoiceTemplate,
       pdf,
       `${invoiceCode}-${ENV.systemConfig.orderInvoiceTemplate}-${Date.now()}.pdf`,
