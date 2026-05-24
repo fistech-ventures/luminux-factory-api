@@ -2,6 +2,7 @@ import { Body, Controller, Post, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { WebRequestInterceptor } from '@src/app/interceptors/webRequest.interceptor';
 import { ApplyCouponDto } from '../../dtos/apply-coupon.dto';
+import { RedeemCouponDto } from '../../dtos/redeem-coupon.dto';
 import { CouponValidationService } from '../../services/coupon-validation.service';
 
 @ApiTags('Coupon')
@@ -12,7 +13,7 @@ export class CouponWebController {
   constructor(private readonly couponValidationService: CouponValidationService) {}
 
   @Post('apply')
-  async apply(@Body() body: ApplyCouponDto & { userId?: string; cartTotal: number; cartItems?: any[] }): Promise<{
+  async apply(@Body() body: ApplyCouponDto): Promise<{
     coupon: any;
     discountAmount: number;
   }> {
@@ -30,7 +31,7 @@ export class CouponWebController {
   }
 
   @Post('redeem')
-  async redeem(@Body() body: { code: string; userId?: string; orderId?: string; discountAmount: number }): Promise<any> {
+  async redeem(@Body() body: RedeemCouponDto): Promise<any> {
     const { code, userId, orderId, discountAmount } = body;
     return this.couponValidationService.redeem({
       code,

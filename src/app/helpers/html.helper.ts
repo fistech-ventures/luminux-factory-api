@@ -9,11 +9,11 @@ const ReadFile = Util.promisify(fs.readFile);
 @Injectable()
 export class HtmlHelper {
   public async createHtmlContent(data: GenericObject, templateType: string): Promise<string> {
+    const templatePath = path.join(
+      process.cwd(),
+      `views/pdf-templates/${templateType}.template.hbs`,
+    );
     try {
-      const templatePath = path.join(
-        process.cwd(),
-        `views/pdf-templates/${templateType}.template.hbs`,
-      );
       const content = await ReadFile(templatePath, 'utf8');
 
       Handlebars.registerHelper('parseDate', function (date) {
@@ -133,6 +133,8 @@ export class HtmlHelper {
       return template(data);
     } catch (e) {
       console.error('Error generating HTML content:', e);
+      console.error('Template path:', templatePath);
+      console.error('Template exists:', fs.existsSync(templatePath));
       throw new Error('Failed to generate HTML content');
     }
   }
