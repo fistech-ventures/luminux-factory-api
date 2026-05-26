@@ -403,19 +403,24 @@ export class CartService extends BaseService<Cart> {
         };
 
         if (existingCartItem) {
-          // Update quantity by adding guest quantity to existing quantity
-          const updatedQuantity = existingCartItem.quantity + guestItem.quantity;
-          const updated = {
-            id: existingCartItem.id,
-            quantity: updatedQuantity,
-          };
-          await queryRunner.manager.save(
-            dtoToModelMapper(this.dataSource, CartItem, updated)
-          );
+          // Overwrite existing quantity with guest quantity (guest latest state)
+          const updatedQuantity = guestItem.quantity;
+          if (updatedQuantity <= 0) {
+            // If guest sent 0 or negative, remove the item from cart
+            await queryRunner.manager.delete(CartItem, { id: existingCartItem.id });
+          } else {
+            const updated = {
+              id: existingCartItem.id,
+              quantity: updatedQuantity,
+            };
+            await queryRunner.manager.save(
+              dtoToModelMapper(this.dataSource, CartItem, updated),
+            );
+          }
         } else {
           // Add new item to cart
           await queryRunner.manager.save(
-            dtoToModelMapper(this.dataSource, CartItem, cartItemData)
+            dtoToModelMapper(this.dataSource, CartItem, cartItemData),
           );
         }
       }
