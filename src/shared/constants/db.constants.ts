@@ -87,6 +87,7 @@ export enum ENUM_TABLE_NAMES {
   SERVICE_PROVIDER = 'service_providers',
   PROVIDER_SERVICE_REQUESTS = 'provider_service_requests',
   NOTES = 'notes',
+  CONTACTS = 'contacts',
 
   // Offers module tables
   OFFERS = 'offers',
