@@ -14,6 +14,7 @@ import { CMSModule } from './modules/cms/cms.module';
 import { CommonModule } from './modules/common/common.module';
 import { FormModule } from './modules/form/form.module';
 import { GalleryModule } from './modules/gallery/gallery.module';
+import { ContactModule } from './modules/contact/contact.module';
 import { LogisticModule } from './modules/logistic/logistic.module';
 import { NoteModule } from './modules/note/note.module';
 import { NotificationModule } from './modules/notification/notification.module';
@@ -51,6 +52,7 @@ const MODULES = [
   CouponsModule,
   CMSModule,
   FormModule,
+  ContactModule,
   SupportModule,
   LogisticModule,
   NoteModule
