@@ -55,19 +55,15 @@ export class UserWishlistService extends BaseService<UserWishlist> {
 
       const userId = authUser.id;
 
-      // Process each guest wishlist item
+      // Add guest items to server wishlist if not already present (non-destructive merge)
       for (const guestItem of guestWishlistItems.guestWishlistItems) {
-        if (!guestItem?.productId) {
-          continue; // Skip invalid items
-        }
+        if (!guestItem?.productId) continue;
 
-        // Check if item already exists in user wishlist
-        const existing = await queryRunner.manager.exists(UserWishlist, {
+        const exists = await queryRunner.manager.exists(UserWishlist, {
           where: { userId, productId: guestItem.productId },
         });
 
-        if (!existing) {
-          // Add to wishlist if not already present
+        if (!exists) {
           await queryRunner.manager.save(UserWishlist, {
             userId,
             productId: guestItem.productId,
