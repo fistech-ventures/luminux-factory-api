@@ -498,6 +498,8 @@ export class AuthService {
       webRedirectUrl: string;
       provider: string;
       role?: string;
+      guestCartItems?: any[];
+      guestWishlistItems?: any[];
     };
     const isExist = await this.userService.findOne({
       where: { email: userData.email },
@@ -557,6 +559,40 @@ export class AuthService {
       }
     }
 
+    // Handle guest cart merge if provided
+    if (additionalData.guestCartItems && additionalData.guestCartItems.length > 0) {
+      try {
+        const guestCartMergePayload = { guestCartItems: additionalData.guestCartItems };
+        const authUser = {
+          id: newCreatedUser.id,
+          email: newCreatedUser.email,
+          fullName: newCreatedUser.fullName,
+          phoneNumber: newCreatedUser.phoneNumber
+        };
+        await this.cartService.mergeGuestCartToUserCart(guestCartMergePayload, authUser);
+      } catch (error) {
+        console.error('Cart merge failed during Google login:', error);
+        // Continue with login even if cart merge fails
+      }
+    }
+
+    // Handle guest wishlist merge if provided
+    if (additionalData.guestWishlistItems && additionalData.guestWishlistItems.length > 0) {
+      try {
+        const guestWishlistMergePayload = { guestWishlistItems: additionalData.guestWishlistItems };
+        const authUser = {
+          id: newCreatedUser.id,
+          email: newCreatedUser.email,
+          fullName: newCreatedUser.fullName,
+          phoneNumber: newCreatedUser.phoneNumber
+        };
+        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
+      } catch (error) {
+        console.error('Wishlist merge failed during Google login:', error);
+        // Continue with login even if wishlist merge fails
+      }
+    }
+
     // Generate backend JWT token instead of using Google access token
     const loginResponse = await this.loginResponse(newCreatedUser);
     const callBackUrl = `${additionalData.webRedirectUrl}?token=${loginResponse.data.accessToken}&provider=${additionalData.provider}`;
@@ -588,6 +624,8 @@ export class AuthService {
       webRedirectUrl: string;
       provider: string;
       role?: string;
+      guestCartItems?: any[];
+      guestWishlistItems?: any[];
     };
     if (!userData?.email) {
       throw new BadRequestException(
@@ -653,6 +691,40 @@ export class AuthService {
             roleId: role.id,
           });
         }
+      }
+    }
+
+    // Handle guest cart merge if provided
+    if (additionalData.guestCartItems && additionalData.guestCartItems.length > 0) {
+      try {
+        const guestCartMergePayload = { guestCartItems: additionalData.guestCartItems };
+        const authUser = {
+          id: newCreatedUser.id,
+          email: newCreatedUser.email,
+          fullName: newCreatedUser.fullName,
+          phoneNumber: newCreatedUser.phoneNumber
+        };
+        await this.cartService.mergeGuestCartToUserCart(guestCartMergePayload, authUser);
+      } catch (error) {
+        console.error('Cart merge failed during Facebook login:', error);
+        // Continue with login even if cart merge fails
+      }
+    }
+
+    // Handle guest wishlist merge if provided
+    if (additionalData.guestWishlistItems && additionalData.guestWishlistItems.length > 0) {
+      try {
+        const guestWishlistMergePayload = { guestWishlistItems: additionalData.guestWishlistItems };
+        const authUser = {
+          id: newCreatedUser.id,
+          email: newCreatedUser.email,
+          fullName: newCreatedUser.fullName,
+          phoneNumber: newCreatedUser.phoneNumber
+        };
+        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
+      } catch (error) {
+        console.error('Wishlist merge failed during Facebook login:', error);
+        // Continue with login even if wishlist merge fails
       }
     }
 
