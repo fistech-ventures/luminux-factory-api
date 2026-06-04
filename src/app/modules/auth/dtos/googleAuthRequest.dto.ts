@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class GoogleAuthRequestDTO {
   @ApiProperty({
@@ -10,4 +10,20 @@ export class GoogleAuthRequestDTO {
   @IsNotEmpty()
   @IsString()
   readonly webRedirectUrl!: string;
+
+  @ApiProperty({
+    type: [Object],
+    required: false,
+    description: 'Guest cart items to merge after login',
+  })
+  @IsOptional()
+  readonly guestCartItems?: any[];
+
+  @ApiProperty({
+    type: [Object],
+    required: false,
+    description: 'Guest wishlist items to merge after login',
+  })
+  @IsOptional()
+  readonly guestWishlistItems?: any[];
 }
