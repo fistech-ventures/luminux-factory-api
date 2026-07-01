@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { BaseFilterDTO } from '@src/app/base';
 import { IsOptional, IsString } from 'class-validator';
 
-export class CategoryFilterDTO extends BaseFilterDTO {
+export class SubCategoryFilterDTO extends BaseFilterDTO {
   @ApiProperty({
     type: Number,
     description: 'The page number',
@@ -42,7 +42,7 @@ export class CategoryFilterDTO extends BaseFilterDTO {
   @ApiProperty({
     type: String,
     required: false,
-    description: 'Parent category ID to filter subcategories',
+    description: 'Parent category ID to filter subcategories by parent',
   })
   @IsOptional()
   @IsString()

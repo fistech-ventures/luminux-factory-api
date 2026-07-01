@@ -54,6 +54,9 @@ export class Product extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
   description?: string;
 
+  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
+  shortDescription?: string;
+
   @Column({ type: ENUM_COLUMN_TYPES.JSONB, nullable: true })
   specifications?: any;
 
@@ -148,6 +151,13 @@ export class Product extends BaseEntity {
   @Column({ nullable: true })
   categoryId?: string;
 
+  @ManyToOne(() => Category, { onDelete: 'SET NULL', nullable: true })
+  subcategory?: Category;
+
+  @RelationId((e: Product) => e.subcategory)
+  @Column({ nullable: true })
+  subcategoryId?: string;
+
   @ManyToOne(() => SourceShop, { onDelete: 'CASCADE' })
   sourceShop?: SourceShop;
 
@@ -176,6 +186,9 @@ export class Product extends BaseEntity {
 
   @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
   isForPreOrder?: boolean;
+
+  @Column({ type: ENUM_COLUMN_TYPES.INT, default: 0 })
+  position?: number;
 
   @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
   isFavorite?: boolean;

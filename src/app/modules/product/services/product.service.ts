@@ -470,6 +470,7 @@ export class ProductService extends BaseService<Product> {
         translator: true,
         publication: true,
         category: true,
+        subcategory: true,
         brand: true,
         variants: { variant: true, variantOption: true },
         medias: { gallery: true },
@@ -501,7 +502,11 @@ export class ProductService extends BaseService<Product> {
         ratingPointAvg: true,
         ratingCount: true,
         description: true,
+        shortDescription: true,
+        position: true,
         categoryId: true,
+        subcategoryId: true,
+        subcategory: { id: true, title: true },
         authorId: true,
         translatorId: true,
         publicationId: true,
@@ -518,17 +523,6 @@ export class ProductService extends BaseService<Product> {
         categories: true,
       }
     });
-
-    // if (!product) {
-    //   throw new NotFoundException('Product not found');
-    // }
-
-    // const relatedProducts = await this.getRelatedProducts(product.id);
-
-    // return {
-    //   ...product,
-    //   relatedProducts,
-    // };
   }
 
   async getRelatedProducts(productId: string, limit = 10): Promise<Product[]> {
@@ -552,7 +546,7 @@ export class ProductService extends BaseService<Product> {
 
     if (!product) throw new NotFoundException('Product not found');
 
-    // const tagIds = product.tags?.map(t => t.tagId) ?? [];
+    const tags = product.tags ?? [];
     const genreIds = product.genres?.map(g => g.genreId) ?? [];
     const categoryIds = product.categories?.map(c => c.categoryId) ?? [];
 
@@ -577,26 +571,34 @@ export class ProductService extends BaseService<Product> {
       .where('p.id != :id', { id: product.id })
       .take(limit);
 
-    // if (tagIds.length) {
-    //   qb.leftJoin('p.tags', 'tag').andWhere('tag.tagId IN (:...tagIds)', { tagIds });
-    // }
+    // Filter by matching tags (OR condition with categories)
+    const conditions: string[] = [];
+    const params: any = {};
     
-    // Filter by same categories (AND condition)
+    if (tags.length) {
+      conditions.push('p.tags @> :tags');
+      params.tags = JSON.stringify(tags);
+    }
+    
     if (categoryIds.length) {
-      qb.leftJoin('p.categories', 'pc')
-        .andWhere('pc.categoryId IN (:...categoryIds)', { categoryIds });
+      qb.leftJoin('p.categories', 'pc');
+      conditions.push('pc.categoryId IN (:...categoryIds)');
+      params.categoryIds = categoryIds;
     }
 
-    // For BOOK type, also filter by genres (AND condition)
+    // For BOOK type, also filter by genres
     if (product.type === ENUM_PRODUCT_TYPE.BOOK && genreIds.length) {
-      qb.leftJoin('p.genres', 'pg')
-        .andWhere('pg.genreId IN (:...genreIds)', { genreIds });
+      qb.leftJoin('p.genres', 'pg');
+      conditions.push('pg.genreId IN (:...genreIds)');
+      params.genreIds = genreIds;
     }
 
-    // Step 3: Faster randomness
+    if (conditions.length) {
+      qb.andWhere(`(${conditions.join(' OR ')})`, params);
+    }
+
+    // Step 3: Faster ordering
     qb.orderBy('p.id', 'DESC'); // deterministic + indexed
-    // Alternative: fast pseudo-random
-    // qb.orderBy('md5(p.id::text)'); 
 
     // Step 4: Execute
     return qb.getMany();
@@ -611,6 +613,7 @@ export class ProductService extends BaseService<Product> {
         translator: true,
         publication: true,
         category: true,
+        subcategory: true,
         brand: true,
         variants: {
           variant: true,
@@ -639,7 +642,11 @@ export class ProductService extends BaseService<Product> {
         ratingPointAvg: true,
         ratingCount: true,
         description: true,
+        shortDescription: true,
+        position: true,
         categoryId: true,
+        subcategoryId: true,
+        subcategory: { id: true, title: true },
         authorId: true,
         translatorId: true,
         publicationId: true,
@@ -686,7 +693,7 @@ export class ProductService extends BaseService<Product> {
           'p.ratingCount',
         ])
         // .leftJoin('p.tags', 'tag')
-        .where('tags IN (:...tags)', { tags })
+        .where('tags @> :tags', { tags: JSON.stringify(tags) })
         .andWhere('p.id != :id', { id: product.id })
         .addSelect('RANDOM()', 'rand') // <-- Add RANDOM() to select list
         .orderBy('rand')               // <-- Order by alias instead

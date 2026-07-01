@@ -79,7 +79,7 @@ export class InternalGalleryController {
     },
   })
   @UseInterceptors(
-    FilesInterceptor('files', 5, {
+    FilesInterceptor('files', 20, {
       storage: storageImageOptions,
       limits: { fileSize: 52428800 /* 50mb */ },
     }),
