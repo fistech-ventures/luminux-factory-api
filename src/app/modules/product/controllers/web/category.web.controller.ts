@@ -15,7 +15,10 @@ import { SortOrder } from '@src/app/base';
 @Controller('web/categories')
 export class CategoryWebController {
   constructor(private readonly service: CategoryService) { }
-  RELATIONS: FindOptionsRelations<Category> = {};
+  RELATIONS: FindOptionsRelations<Category> = {
+    parent: true,
+    children: true,
+  };
 
   @Public()
   @Get()
