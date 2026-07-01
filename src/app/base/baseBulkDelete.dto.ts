@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray } from 'class-validator';
+import { IsArray, IsOptional } from 'class-validator';
 import { UUID } from 'typeorm/driver/mongodb/bson.typings';
 import { IsNotEmptyArray } from '../decorators';
 
@@ -8,4 +8,7 @@ export class BaseBulkDeleteDTO {
   @IsArray()
   @IsNotEmptyArray()
   ids: string[];
+
+  @IsOptional()
+  readonly deletedBy?: any;
 }

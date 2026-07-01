@@ -179,6 +179,13 @@ export class ProductFilterDTO {
     required: false,
   })
   @IsOptional()
+  subcategoryId!: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+  })
+  @IsOptional()
   productCategoryId!: string;
 
   @ApiProperty({

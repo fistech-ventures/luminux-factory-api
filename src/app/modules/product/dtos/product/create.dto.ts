@@ -214,6 +214,15 @@ export class ProductCreateDTO {
   readonly description!: string;
 
   @ApiProperty({
+    type: String,
+    required: false,
+    example: `Short description of the product (richtext from frontend).`,
+  })
+  @IsOptional()
+  @IsString()
+  readonly shortDescription!: string;
+
+  @ApiProperty({
     type: Object,
     required: false,
     example: {
@@ -304,6 +313,15 @@ export class ProductCreateDTO {
   readonly stockQuantity!: number;
 
   @ApiProperty({
+    type: Number,
+    required: false,
+    example: 0,
+  })
+  @IsOptional()
+  @IsNumber()
+  readonly position!: number;
+
+  @ApiProperty({
     type: String,
     required: false,
     example: 'Bengali',
@@ -366,6 +384,15 @@ export class ProductCreateDTO {
   @IsOptional()
   @IsString()
   readonly categoryId!: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: 'subcategory uuid',
+  })
+  @IsOptional()
+  @IsString()
+  readonly subcategoryId!: string;
 
   @ApiProperty({
     type: String,

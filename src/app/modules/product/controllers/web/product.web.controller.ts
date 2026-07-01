@@ -20,6 +20,7 @@ import { ProductReview } from '../../entities/productReview.entity';
 import { ProductService } from '../../services/product.service';
 import { ProductQuestionService } from '../../services/productQuestion.service';
 import { ProductReviewService } from '../../services/productReview.service';
+import { SubCategoryService } from '../../services/subCategory.service';
 
 @ApiTags('Product')
 @ApiBearerAuth()
@@ -30,12 +31,14 @@ export class ProductWebController {
     private readonly service: ProductService,
     private readonly productReviewService: ProductReviewService,
     private readonly productQuestionService: ProductQuestionService,
+    private readonly subCategoryService: SubCategoryService,
   ) {}
   RELATIONS: FindOptionsRelations<Product> = {
     author: true,
     translator: true,
     publication: true,
     category: true,
+    subcategory: true,
     brand: true,
     variants: {
       variant: true,
@@ -85,8 +88,14 @@ export class ProductWebController {
         categoryId: query?.productCategoryId,
       };
     } else if (query?.categoryId) {
+      // Also include subcategories of this parent category
+      const subCategories = await this.subCategoryService.find({
+        where: { parentId: query.categoryId },
+        select: { id: true },
+      });
+      const categoryIds = [query.categoryId, ...subCategories.map((sc) => sc.id)];
       filterQuery['categories'] = {
-        categoryId: query?.categoryId,
+        categoryId: In(categoryIds),
       };
     }
     delete filterQuery?.productTags;
@@ -103,6 +112,12 @@ export class ProductWebController {
       filterQuery['isFavorite'] = true;
     }
     delete filterQuery?.isFavourite;
+
+    // Default sort by position if no sort specified
+    if (!query.sortBy) {
+      filterQuery['sortBy'] = 'position';
+      filterQuery['sortOrder'] = 'ASC';
+    }
 
     return this.service.findAllBase(filterQuery, {
       select: {
@@ -122,6 +137,13 @@ export class ProductWebController {
         variants: true,
         ratingPointAvg: true,
         ratingCount: true,
+        shortDescription: true,
+        position: true,
+        subcategoryId: true,
+        subcategory: {
+          id: true,
+          title: true,
+        },
         categories: {
           categoryId: true,
           category: {
@@ -157,8 +179,8 @@ export class ProductWebController {
   @UseInterceptors(CacheInterceptor)
   @Public()
   @Get('by-slug/:slug')
-  async getProductWithRelatedBySlug(@Param('slug') slug: string): Promise<Product> {
-    return this.service.getProductBySlugOrId(slug, 'slug');
+  async getProductWithRelatedBySlug(@Param('slug') slug: string): Promise<any> {
+    return this.service.getProductWithRelatedProducts(slug, 'slug');
   }
 
   @CacheKey('products:details')
