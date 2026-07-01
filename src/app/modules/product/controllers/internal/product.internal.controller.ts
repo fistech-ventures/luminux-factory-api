@@ -31,6 +31,7 @@ export class ProductInternalController {
     translator: true,
     publication: true,
     category: true,
+    subcategory: true,
     sourceShop: true,
     brand: true,
     variants: {

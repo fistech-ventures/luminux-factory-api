@@ -1,11 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class CategoryCreateDTO {
+export class SubCategoryCreateDTO {
   @ApiProperty({
     type: String,
     required: true,
-    example: 'Books',
+    example: 'Science Fiction',
   })
   @IsNotEmpty()
   @IsString()
@@ -14,7 +14,7 @@ export class CategoryCreateDTO {
   @ApiProperty({
     type: String,
     required: false,
-    example: 'fibonaccibooks.com/category-icon-image.jpg',
+    example: 'fibonaccibooks.com/subcategory-icon-image.jpg',
   })
   @IsOptional()
   @IsString()
@@ -23,7 +23,7 @@ export class CategoryCreateDTO {
   @ApiProperty({
     type: String,
     required: false,
-    example: 'fibonaccibooks.com/category-banner-image.jpg',
+    example: 'fibonaccibooks.com/subcategory-banner-image.jpg',
   })
   @IsOptional()
   @IsString()
@@ -48,12 +48,12 @@ export class CategoryCreateDTO {
 
   @ApiProperty({
     type: String,
-    required: false,
+    required: true,
     example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  readonly parentId?: string;
+  readonly parentId!: string;
 
   @IsOptional()
   readonly createdBy?: any;

@@ -133,7 +133,7 @@ export class GalleryService extends BaseService<Gallery> {
     try {
       const itemsToDelete = await this.find({ where: { id: In(ids) } });
       await asyncForEach(itemsToDelete, async (item) => {
-        this.fileUploadService.deleteFromSupabase(item?.key);
+        await this.fileUploadService.deleteFromSupabase(item?.key);
       });
       return this.deleteBulkBase(ids);
     } catch (error) {

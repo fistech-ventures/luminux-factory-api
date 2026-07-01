@@ -8,12 +8,14 @@ import { ProductInternalController } from './controllers/internal/product.intern
 import { ProductQuestionInternalController } from './controllers/internal/productQuestion.internal.controller';
 import { ProductRequestInternalController } from './controllers/internal/productRequest.internal.controller';
 import { SourceShopInternalController } from './controllers/internal/sourceShop.internal.controller';
+import { SubCategoryInternalController } from './controllers/internal/subCategory.internal.controller';
 import { TagInternalController } from './controllers/internal/tag.internal.controller';
 import { VariantInternalController } from './controllers/internal/variant.internal.controller';
 import { ProductWebController } from './controllers/web/product.web.controller';
 import { ProductQuestionWebController } from './controllers/web/productQuestion.web.controller';
 import { ProductRequestWebController } from './controllers/web/productRequest.web.controller';
 import { ProductReviewWebController } from './controllers/web/productReview.web.controller';
+import { SubCategoryWebController } from './controllers/web/subCategory.web.controller';
 import { Brand } from './entities/brand.entity';
 import { Category } from './entities/category.entity';
 import { Genre } from './entities/genre.entity';
@@ -41,6 +43,7 @@ import { ProductRequestService } from './services/productRequest.service';
 import { ProductReviewService } from './services/productReview.service';
 import { ProductVariantOptionService } from './services/productVariantOption.service';
 import { SourceShopService } from './services/sourceShop.service';
+import { SubCategoryService } from './services/subCategory.service';
 import { TagService } from './services/tag.service';
 import { VariantService } from './services/variant.service';
 import { VariantOptionService } from './services/variantOption.service';
@@ -86,11 +89,12 @@ const services = [
   ProductRequestService,
   ProductQuestionService,
   ProductQuestionAnswerService,
+  SubCategoryService,
 ];
 const subscribers = [ProductSubscriber];
 
 const controllers = [];
-const webControllers = [ProductWebController, ProductReviewWebController, ProductQuestionWebController, ProductRequestWebController, CategoryWebController];
+const webControllers = [ProductWebController, ProductReviewWebController, ProductQuestionWebController, ProductRequestWebController, CategoryWebController, SubCategoryWebController];
 const internalControllers = [
   GenreInternalController,
   TagInternalController,
@@ -101,7 +105,8 @@ const internalControllers = [
   ProductInternalController,
   ProductQuestionInternalController,
   ProductRequestInternalController,
-  ProductReviewInternalController
+  ProductReviewInternalController,
+  SubCategoryInternalController,
 ];
 
 const modules = [
