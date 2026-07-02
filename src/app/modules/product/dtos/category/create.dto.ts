@@ -46,15 +46,6 @@ export class CategoryCreateDTO {
   @IsOptional()
   readonly position!: number;
 
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
-  })
-  @IsOptional()
-  @IsString()
-  readonly parentId?: string;
-
   @IsOptional()
   readonly createdBy?: any;
 }

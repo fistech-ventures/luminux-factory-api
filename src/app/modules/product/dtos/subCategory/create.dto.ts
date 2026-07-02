@@ -53,7 +53,7 @@ export class SubCategoryCreateDTO {
   })
   @IsNotEmpty()
   @IsString()
-  readonly parentId!: string;
+  readonly categoryId!: string;
 
   @IsOptional()
   readonly createdBy?: any;

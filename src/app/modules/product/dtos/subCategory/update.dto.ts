@@ -53,7 +53,7 @@ export class SubCategoryUpdateDTO {
   })
   @IsOptional()
   @IsString()
-  readonly parentId?: string;
+  readonly categoryId?: string;
 
   @IsOptional()
   readonly updatedBy?: any;

@@ -3,6 +3,7 @@ import { ENUM_COLUMN_TYPES, ENUM_TABLE_NAMES } from '@src/shared';
 import { Column, Entity, Index, ManyToOne, OneToMany, RelationId } from 'typeorm';
 import { Author } from '../../author/entities/author.entity';
 import { Publication } from '../../publication/entities/publication.entity';
+import { SubCategory } from './subCategory.entity';
 import { ENUM_PRODUCT_CONDITION, ENUM_PRODUCT_DISCOUNT_TYPE, ENUM_PRODUCT_SEGMENT, ENUM_PRODUCT_STATUS, ENUM_PRODUCT_STOCK_STATUS, ENUM_PRODUCT_TYPE } from '../const';
 import { Brand } from './brand.entity';
 import { Category } from './category.entity';
@@ -151,8 +152,8 @@ export class Product extends BaseEntity {
   @Column({ nullable: true })
   categoryId?: string;
 
-  @ManyToOne(() => Category, { onDelete: 'SET NULL', nullable: true })
-  subcategory?: Category;
+  @ManyToOne(() => SubCategory, { onDelete: 'SET NULL', nullable: true })
+  subcategory?: SubCategory;
 
   @RelationId((e: Product) => e.subcategory)
   @Column({ nullable: true })
