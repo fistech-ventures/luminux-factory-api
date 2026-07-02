@@ -621,6 +621,7 @@ export class ProductService extends BaseService<Product> {
         },
         medias: { gallery: true },
         genres: { genre: true },
+        categories: { category: true },
       },
       select: {
         id: true,
@@ -732,8 +733,7 @@ export class ProductService extends BaseService<Product> {
           .getMany();
       }
       if (!relatedProducts.length) {
-        relatedProducts = await this.find({
-          where: { categoryId: In(product.categories.map(c => c.categoryId)), id: Not(product.id) },
+        relatedProducts = await this.find({            where: { categoryId: In(product.categories?.map(c => c.categoryId) ?? []), id: Not(product.id) },
           select: {
             id: true,
             title: true,
