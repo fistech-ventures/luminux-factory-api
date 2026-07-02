@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base/base.service';
 import { SuccessResponse } from '@src/app/types';
-import { DataSource, FindOptionsRelations, In, IsNull, Not, Repository } from 'typeorm';
+import { DataSource, FindOptionsRelations, In, Repository } from 'typeorm';
 import { SubCategoryCreateDTO } from '../dtos/subCategory/create.dto';
 import { SubCategoryUpdateDTO } from '../dtos/subCategory/update.dto';
 import { SubCategory } from '../entities/subCategory.entity';
