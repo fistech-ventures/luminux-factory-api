@@ -21,6 +21,7 @@ import { ProductService } from '../../services/product.service';
 import { ProductQuestionService } from '../../services/productQuestion.service';
 import { ProductReviewService } from '../../services/productReview.service';
 import { SubCategoryService } from '../../services/subCategory.service';
+import { SubCategory } from '../../entities/subCategory.entity';
 
 @ApiTags('Product')
 @ApiBearerAuth()
@@ -90,10 +91,10 @@ export class ProductWebController {
     } else if (query?.categoryId) {
       // Also include subcategories of this parent category
       const subCategories = await this.subCategoryService.find({
-        where: { parentId: query.categoryId },
+        where: { categoryId: query.categoryId },
         select: { id: true },
       });
-      const categoryIds = [query.categoryId, ...subCategories.map((sc) => sc.id)];
+      const categoryIds = [query.categoryId, ...subCategories.map((sc: SubCategory) => sc.id)];
       filterQuery['categories'] = {
         categoryId: In(categoryIds),
       };
