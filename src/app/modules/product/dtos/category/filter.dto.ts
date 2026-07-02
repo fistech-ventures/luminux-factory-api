@@ -39,12 +39,4 @@ export class CategoryFilterDTO extends BaseFilterDTO {
   @IsOptional()
   isActive!: boolean;
 
-  @ApiProperty({
-    type: String,
-    required: false,
-    description: 'Parent category ID to filter subcategories',
-  })
-  @IsOptional()
-  @IsString()
-  parentId!: string;
 }

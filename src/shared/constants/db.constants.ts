@@ -45,6 +45,7 @@ export enum ENUM_TABLE_NAMES {
   VARIANTS = 'variants',
   VARIANT_OPTIONS = 'variant_options',
   CATEGORIES = 'categories',
+  SUB_CATEGORIES = 'sub_categories',
   BRANDS = 'brands',
   SOURCE_SHOPS = 'source_shops',
   PRODUCTS = 'products',

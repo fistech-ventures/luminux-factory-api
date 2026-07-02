@@ -15,10 +15,7 @@ import { SortOrder } from '@src/app/base';
 @Controller('web/categories')
 export class CategoryWebController {
   constructor(private readonly service: CategoryService) { }
-  RELATIONS: FindOptionsRelations<Category> = {
-    parent: true,
-    children: true,
-  };
+  RELATIONS: FindOptionsRelations<Category> = {};
 
   @Public()
   @Get()
@@ -26,6 +23,7 @@ export class CategoryWebController {
     query['sortBy'] = 'position';
     query['sortOrder'] = SortOrder.ASC;
     query['isActive'] = true;
+    query['parentId'] = null;
     return this.service.findAllBase(query, { relations: this.RELATIONS });
   }
 
