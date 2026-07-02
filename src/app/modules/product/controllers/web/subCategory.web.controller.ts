@@ -5,7 +5,7 @@ import { Public } from '@src/app/decorators/publicRoute.decorator';
 import { WebRequestInterceptor } from '@src/app/interceptors/webRequest.interceptor';
 import { SortOrder } from '@src/app/base';
 import { SubCategoryFilterDTO } from '../../dtos/subCategory/filter.dto';
-import { Category } from '../../entities/category.entity';
+import { SubCategory } from '../../entities/subCategory.entity';
 import { SubCategoryService } from '../../services/subCategory.service';
 
 @ApiTags('SubCategory')
@@ -17,7 +17,7 @@ export class SubCategoryWebController {
 
   @Public()
   @Get()
-  async findAll(@Query() query: SubCategoryFilterDTO): Promise<SuccessResponse<Category[]>> {
+  async findAll(@Query() query: SubCategoryFilterDTO): Promise<SuccessResponse<SubCategory[]>> {
     query['sortBy'] = query.sortBy || 'position';
     query['sortOrder'] = query.sortOrder || SortOrder.ASC;
     return this.service.findAllSubCategories(query);
@@ -25,7 +25,7 @@ export class SubCategoryWebController {
 
   @Public()
   @Get(':id')
-  async findById(@Param('id') id: string): Promise<Category> {
+  async findById(@Param('id') id: string): Promise<SubCategory> {
     return this.service.findSubCategoryById(id);
   }
 }

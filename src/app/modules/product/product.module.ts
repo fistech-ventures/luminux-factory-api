@@ -18,6 +18,7 @@ import { ProductReviewWebController } from './controllers/web/productReview.web.
 import { SubCategoryWebController } from './controllers/web/subCategory.web.controller';
 import { Brand } from './entities/brand.entity';
 import { Category } from './entities/category.entity';
+import { SubCategory } from './entities/subCategory.entity';
 import { Genre } from './entities/genre.entity';
 import { Product } from './entities/product.entity';
 import { ProductGenre } from './entities/productGenres.entity';
@@ -57,6 +58,7 @@ const entities = [
   Genre,
   Tag,
   Category,
+  SubCategory,
   Variant,
   VariantOption,
   SourceShop,

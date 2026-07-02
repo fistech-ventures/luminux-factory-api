@@ -16,13 +16,12 @@ import { CategoryService } from '../../services/category.service';
 @Controller('internal/categories')
 export class CategoryInternalController {
   constructor(private readonly service: CategoryService) { }
-  RELATIONS: FindOptionsRelations<Category> = {
-    parent: true,
-  };
+  RELATIONS: FindOptionsRelations<Category> = {};
 
   @Get()
   async findAll(@Query() query: CategoryFilterDTO): Promise<SuccessResponse<Category[]>> {
     query['sortBy'] = 'position';
+    query['parentId'] = null;
     return this.service.findAllBase(query, { relations: this.RELATIONS });
   }
 

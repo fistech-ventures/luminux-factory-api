@@ -5,25 +5,25 @@ import { SuccessResponse } from '@src/app/types';
 import { DataSource, FindOptionsRelations, In, IsNull, Not, Repository } from 'typeorm';
 import { SubCategoryCreateDTO } from '../dtos/subCategory/create.dto';
 import { SubCategoryUpdateDTO } from '../dtos/subCategory/update.dto';
-import { Category } from '../entities/category.entity';
+import { SubCategory } from '../entities/subCategory.entity';
 
 @Injectable()
-export class SubCategoryService extends BaseService<Category> {
+export class SubCategoryService extends BaseService<SubCategory> {
   constructor(
-    @InjectRepository(Category)
-    public readonly _repo: Repository<Category>,
+    @InjectRepository(SubCategory)
+    public readonly _repo: Repository<SubCategory>,
     private readonly dataSource: DataSource,
   ) {
     super(_repo);
   }
 
-  RELATIONS: FindOptionsRelations<Category> = {
-    parent: true,
+  RELATIONS: FindOptionsRelations<SubCategory> = {
+    category: true,
   };
 
   /**
-   * Find all subcategories (categories that have a parent).
-   * Optionally filtered by parentId to get subcategories of a specific parent.
+   * Find all subcategories.
+   * Optionally filtered by categoryId to get subcategories of a specific parent category.
    */
   async findAllSubCategories(
     filters: any & {
@@ -32,26 +32,28 @@ export class SubCategoryService extends BaseService<Category> {
       page?: number;
       sortBy?: string;
       sortOrder?: 'ASC' | 'DESC';
-      parentId?: string;
+      categoryId?: string;
     },
-  ): Promise<SuccessResponse<Category[]>> {
-    const { parentId, ...restFilters } = filters;
+  ): Promise<SuccessResponse<SubCategory[]>> {
+    const { categoryId, ...restFilters } = filters;
 
-    // Always enforce parentId IS NOT NULL (only subcategories)
     const where: any = {
       ...restFilters,
-      parentId: parentId ? parentId : Not(IsNull()),
     };
+
+    if (categoryId) {
+      where.categoryId = categoryId;
+    }
 
     return this.findAllBase(where, { relations: this.RELATIONS });
   }
 
   /**
-   * Find a single subcategory by ID. Ensures it has a parentId.
+   * Find a single subcategory by ID.
    */
-  async findSubCategoryById(id: string): Promise<Category> {
+  async findSubCategoryById(id: string): Promise<SubCategory> {
     const subCategory = await this.findOne({
-      where: { id, parentId: Not(IsNull()) },
+      where: { id },
       relations: this.RELATIONS,
     });
     if (!subCategory) {
@@ -61,18 +63,18 @@ export class SubCategoryService extends BaseService<Category> {
   }
 
   /**
-   * Create a subcategory (parentId is required).
+   * Create a subcategory.
    */
-  async createSubCategory(payload: SubCategoryCreateDTO): Promise<Category> {
+  async createSubCategory(payload: SubCategoryCreateDTO): Promise<SubCategory> {
     return this.createOneBase(payload as any, { relations: this.RELATIONS });
   }
 
   /**
-   * Update a subcategory by ID. Ensures it has a parentId.
+   * Update a subcategory by ID.
    */
-  async updateSubCategory(id: string, payload: SubCategoryUpdateDTO): Promise<Category> {
+  async updateSubCategory(id: string, payload: SubCategoryUpdateDTO): Promise<SubCategory> {
     const subCategory = await this.findOne({
-      where: { id, parentId: Not(IsNull()) },
+      where: { id },
     });
     if (!subCategory) {
       throw new NotFoundException('SubCategory not found');
@@ -81,11 +83,11 @@ export class SubCategoryService extends BaseService<Category> {
   }
 
   /**
-   * Delete a subcategory by ID. Ensures it has a parentId.
+   * Delete a subcategory by ID.
    */
   async deleteSubCategory(id: string): Promise<SuccessResponse> {
     const subCategory = await this.findOne({
-      where: { id, parentId: Not(IsNull()) },
+      where: { id },
     });
     if (!subCategory) {
       throw new NotFoundException('SubCategory not found');
@@ -94,11 +96,11 @@ export class SubCategoryService extends BaseService<Category> {
   }
 
   /**
-   * Bulk delete subcategories. Ensures all have parentId.
+   * Bulk delete subcategories.
    */
   async bulkDeleteSubCategories(ids: string[]): Promise<SuccessResponse> {
     const subCategories = await this.find({
-      where: { id: In(ids), parentId: Not(IsNull()) },
+      where: { id: In(ids) },
       select: { id: true },
     });
     if (subCategories.length !== ids.length) {
