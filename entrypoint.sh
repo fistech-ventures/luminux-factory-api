@@ -5,5 +5,5 @@ mkdir -p /logs
 touch /logs/app.log
 
 # yarn db:migration:run
-yarn db:seed
+# yarn db:seed
 node dist/main.js

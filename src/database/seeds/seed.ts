@@ -12,7 +12,7 @@ import { User } from '@src/app/modules/user/entities/user.entity';
 import { UserAddress } from '@src/app/modules/user/entities/userAddress.entity';
 import { UserMembership } from '@src/app/modules/user/entities/userMembership.entity';
 import { UserRole } from '@src/app/modules/user/entities/userRole.entity';
-import { ormConfig } from '@src/env';
+import { ENV, ormConfig } from '@src/env';
 import { DataSource } from 'typeorm';
 import AnalyticsConfigSeeder from './seeder/analyticsConfig.seeder';
 import AreaSeeder from './seeder/area.seeder';
@@ -32,7 +32,7 @@ const dataSource = new DataSource({
   password: ormConfig.password,
   database: ormConfig.database,
   // ssl: ENV.isProduction ? { rejectUnauthorized: false } : false,
-  synchronize: true,
+  synchronize: ENV.db.synchronize,
   entities: [
     User,
     Role,
