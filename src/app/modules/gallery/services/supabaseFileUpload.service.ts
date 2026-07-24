@@ -52,8 +52,18 @@ export class SupabaseFileUploadService {
       }
 
       const fileStream = await fs.createReadStream(filePath);
-      const originalName = file.originalname ? file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '-') : `${Date.now()}.${extension}`;
-      const fileName = `${Date.now()}-${originalName}`;
+      let fileName = `${Date.now()}.${extension}`;
+      if (file.originalname) {
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '-');
+        const lastDotIndex = sanitizedName.lastIndexOf('.');
+        if (lastDotIndex !== -1) {
+          const nameWithoutExt = sanitizedName.substring(0, lastDotIndex);
+          const ext = sanitizedName.substring(lastDotIndex);
+          fileName = `${nameWithoutExt}-${Date.now()}${ext}`;
+        } else {
+          fileName = `${sanitizedName}-${Date.now()}.${extension}`;
+        }
+      }
       
       const url = await this.supabaseHelper.uploadBinary(folder, fileStream, fileName, file.mimetype);
       
