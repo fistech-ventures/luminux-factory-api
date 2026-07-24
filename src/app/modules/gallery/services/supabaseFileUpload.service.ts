@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { IFileMeta } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { asyncForEach } from '@src/shared';
@@ -52,7 +52,8 @@ export class SupabaseFileUploadService {
       }
 
       const fileStream = await fs.createReadStream(filePath);
-      const fileName = `${Date.now()}.${extension}`;
+      const originalName = file.originalname ? file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '-') : `${Date.now()}.${extension}`;
+      const fileName = `${Date.now()}-${originalName}`;
       
       const url = await this.supabaseHelper.uploadBinary(folder, fileStream, fileName, file.mimetype);
       
@@ -65,11 +66,14 @@ export class SupabaseFileUploadService {
         return { url, key: `${folder}/${fileName}` };
       } else {
         console.error('🚀 ~ SupabaseFileUploadService ~ uploadToSupabase ~ url:', url);
-        return null;
+        throw new HttpException('Failed to retrieve URL from Supabase after upload', HttpStatus.INTERNAL_SERVER_ERROR);
       }
     } catch (error) {
       console.error('🚀 ~ SupabaseFileUploadService ~ uploadToSupabase ~ error:', error);
-      return null;
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(error.message || 'Error uploading file', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

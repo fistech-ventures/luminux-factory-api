@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ENV } from '@src/env';
 import { mimeTypeMapping } from '@src/shared/constants/mimeTypes.constants';
@@ -31,9 +31,14 @@ export class SupabaseUploadHelper {
     try {
       const key = fileName || `${Date.now()}`;
       const filePath = `${folder}/${key}`;
+      const bucketName = ENV.supabase.bucket?.trim();
+
+      if (!bucketName) {
+        throw new HttpException('Supabase bucket name is not configured in the environment variables', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
 
       const { error } = await this.supabase.storage
-        .from(ENV.supabase.bucket)
+        .from(bucketName)
         .upload(filePath, binary, {
           contentType: contentType || 'image/jpeg',
           upsert: true,
@@ -41,17 +46,20 @@ export class SupabaseUploadHelper {
 
       if (error) {
         console.error('🚀 ~ SupabaseUploadHelper ~ upload error:', error);
-        return '';
+        throw new HttpException(`Supabase upload error: ${error.message || 'Unknown error'}`, HttpStatus.BAD_REQUEST);
       }
 
       const { data: { publicUrl } } = this.supabase.storage
-        .from(ENV.supabase.bucket)
+        .from(bucketName)
         .getPublicUrl(filePath);
 
       return publicUrl;
     } catch (error) {
       console.error('🚀 ~ SupabaseUploadHelper ~ error:', error);
-      return '';
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(error.message || 'Error uploading to Supabase', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -155,8 +163,11 @@ export class SupabaseUploadHelper {
 
   public async deleteFile(filePath: string): Promise<void> {
     try {
+      const bucketName = ENV.supabase.bucket?.trim();
+      if (!bucketName) return;
+
       const { error } = await this.supabase.storage
-        .from(ENV.supabase.bucket)
+        .from(bucketName)
         .remove([filePath]);
 
       if (error) {
