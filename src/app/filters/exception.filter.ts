@@ -43,7 +43,7 @@ export class ExceptionFilter implements NestExceptionFilter {
         errorMessages = [`${field || ''} not found`];
         statusCode = HttpStatus.CONFLICT;
       } else {
-        errorMessages = typeof res.message === 'string' ? [res.message] : res.message;
+        errorMessages = typeof res === 'string' ? [res] : (typeof res?.message === 'string' ? [res.message] : res?.message || ['Internal Server Error']);
       }
     } else {
       if (
