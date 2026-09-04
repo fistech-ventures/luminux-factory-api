@@ -15,7 +15,7 @@ export class ValidateDTO {
   @ApiProperty({
     type: String,
     required: false,
-    example: 'google',
+    example: 'system',
   })
   @IsOptional()
   @IsString()

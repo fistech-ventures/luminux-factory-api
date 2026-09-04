@@ -106,18 +106,6 @@ export const ENV = {
       issuer: process.env.GOOGLE_AUTHENTICATOR_ISSUER,
     },
   },
-  google: {
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    secret: process.env.GOOGLE_SECRET,
-    redirectUrl: process.env.GOOGLE_REDIRECT_URL,
-  },
-  facebook: {
-    apiVersion: process.env.FB_API_VERSION,
-    clientId: process.env.FACEBOOK_CLIENT_ID,
-    secret: process.env.FACEBOOK_SECRET,
-    redirectUrl: process.env.FACEBOOK_REDIRECT_URL,
-    configId: process.env.FACEBOOK_CONFIG_ID,
-  },
   policy: {
     supportEmailAddress: process.env.SUPPORT_EMAIL_ADDRESS,
   },

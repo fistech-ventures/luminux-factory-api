@@ -2,7 +2,6 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { IFileMeta } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { asyncForEach } from '@src/shared';
-import axios from 'axios';
 import * as fs from 'fs';
 import { join } from 'path';
 import { R2UploadHelper } from '@src/app/helpers';
@@ -93,28 +92,6 @@ export class R2FileUploadService {
     } catch (error) {
       console.error("🚀 ~ R2FileUploadService ~ deleteFromR2 ~ error:", error)
     }
-  }
-
-  async uploadFacebookProfilePic(imageUrl: string): Promise<string> {
-    // Fetch image as stream
-    const response = await axios({
-      url: imageUrl,
-      method: 'GET',
-      responseType: 'arraybuffer',
-    });
-
-    // Create unique filename
-    const filename = `${Date.now()}.jpg`;
-
-    // Upload to R2
-    const url = await this.r2Helper.uploadBinary(
-      'profiles',
-      response.data,
-      filename,
-      'image/jpeg'
-    );
-
-    return url;
   }
 
   getFolderByMimeType(file: IFileMeta): string {

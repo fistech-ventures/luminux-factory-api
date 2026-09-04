@@ -1,4 +1,3 @@
-import { HttpService } from '@nestjs/axios';
 import {
   BadRequestException,
   ConflictException,
@@ -11,17 +10,9 @@ import { IAuthUser, ILginResponse } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { ENV } from '@src/env';
 import { generateStrongPassword, ENUM_ACL_DEFAULT_ROLES, ENUM_AUTH_PROVIDERS, ENUM_VERIFICATION_TYPES, gen6digitOTP, identifyIdentifier } from '@src/shared';
-import {
-  commitTransaction,
-  rollbackTransaction,
-  startTransaction,
-} from '@src/shared/utils/dborm.utils';
-import * as Crypto from 'crypto';
-import { firstValueFrom } from 'rxjs';
 import { DataSource } from 'typeorm';
 import { Role } from '../../acl/entities/role.entity';
 import { RoleService } from '../../acl/services/role.service';
-import { R2FileUploadService } from '../../gallery/services/r2FileUpload.service';
 import { GlobalConfigService } from '../../globalConfig/services/globalConfig.service';
 import { EmailService } from '../../notification/services/email.service';
 import { SmsService } from '../../notification/services/sms.service';
@@ -29,8 +20,6 @@ import { UserProfileCreateDTO } from '../../user/dtos/userProfile/create.dto';
 import { User } from '../../user/entities/user.entity';
 import { UserProfileService } from '../../user/services/userProfile.service';
 import { UserRoleService } from '../../user/services/userRole.service';
-import { FacebookAuthRequestDTO } from '../dtos/facebookAuthRequest.dto';
-import { GoogleAuthRequestDTO } from '../dtos/googleAuthRequest.dto';
 import { LoginDTO } from '../dtos/login.dto';
 import { RefreshTokenDTO } from '../dtos/refreshToken.dto';
 import { RegisterDTO } from '../dtos/register.dto';
@@ -51,14 +40,12 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly roleService: RoleService,
     private readonly userRoleService: UserRoleService,
-    private readonly http: HttpService,
     private readonly jwtHelper: JWTHelper,
     private readonly bcryptHelper: BcryptHelper,
     private readonly emailHelper: EmailHelper,
     private readonly emailService: EmailService,
     private readonly smsService: SmsService,
     private readonly globalConfigService: GlobalConfigService,
-    private readonly fileUploadService: R2FileUploadService,
     private readonly userProfileService: UserProfileService,
   ) { }
 
@@ -234,19 +221,6 @@ export class AuthService {
       throw new BadRequestException('User does not exists');
     }
 
-    // For social users who haven't set a password yet, skip old password verification
-    const isSocialUser = user.authProvider === ENUM_AUTH_PROVIDERS.GOOGLE || user.authProvider === ENUM_AUTH_PROVIDERS.FACEBOOK;
-    if (isSocialUser) {
-      // Allow password change without old password verification for social users
-      const updatedUser = await this.userService.saveOne({
-        id: user.id,
-        password: newPassword,
-      });
-      return this.loginResponse(updatedUser, {
-        message: 'Password set successfully. You can now login with email/password.',
-      });
-    }
-
     const isPasswordMatched = await this.bcryptHelper.compareHash(oldPassword, user.password);
 
     if (!isPasswordMatched) {
@@ -401,361 +375,8 @@ export class AuthService {
     };
   }
 
-  async googleAuthRequest(query: GoogleAuthRequestDTO & { role?: string }): Promise<string> {
-    const state = JSON.stringify({ provider: 'google', ...query });
-    const scopes = [
-      'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/userinfo.profile',
-    ];
-    const authorizationUrl =
-      'https://accounts.google.com/o/oauth2/v2/auth' +
-      `?client_id=${ENV.google.clientId}` +
-      `&redirect_uri=${ENV.google.redirectUrl}` +
-      '&response_type=code' +
-      '&scope=' +
-      scopes.join(' ') +
-      '&state=' +
-      state;
-    return authorizationUrl;
-  }
-
-  async googleLogin(
-    userData: Record<string, any>,
-    state: string,
-  ): Promise<{
-    callBackUrl: string;
-  }> {
-    if (!userData) {
-      throw new BadRequestException('No user from google');
-    }
-    const additionalData = JSON.parse(state) as {
-      webRedirectUrl: string;
-      provider: string;
-      role?: string;
-    };
-    const isExist = await this.userService.findOne({
-      where: { email: userData.email },
-    });
-
-    if (!isExist) {
-      const queryRunner = await startTransaction(this.dataSource);
-      try {
-        const newUserData: User = {
-          fullName: userData.fullName,
-          email: userData.email,
-          authProvider: ENUM_AUTH_PROVIDERS.GOOGLE,
-          password: Crypto.randomBytes(20).toString('hex'),
-          isVerified: true,
-          avatar: userData.picture,
-        };
-        const createdUser = await queryRunner.manager.save(Object.assign(new User(), newUserData));
-
-        if (!createdUser) {
-          throw new BadRequestException('Cannot create user');
-        }
-        await commitTransaction(queryRunner);
-      } catch (error) {
-        console.error('🚀 ~ AuthService ~ error:', error);
-        await rollbackTransaction(queryRunner);
-      }
-    }
-
-    const newCreatedUser = await this.userService.findOne({
-      where: { email: userData.email },
-    });
-
-    if (!newCreatedUser) {
-      throw new BadRequestException('User not created');
-    }
-
-    //? Role assignment
-    if (additionalData?.role) {
-      const role = await this.roleService.findOne({
-        where: {
-          title: additionalData.role,
-        },
-      });
-      if (role) {
-        const isUserRoleExist = await this.userRoleService.findOne({
-          where: {
-            userId: newCreatedUser.id,
-            roleId: role.id,
-          },
-        });
-        if (!isUserRoleExist) {
-          await this.userRoleService.createOneBase({
-            userId: newCreatedUser.id,
-            roleId: role.id,
-          });
-        }
-      }
-    }
-
-    // Generate backend JWT token instead of using Google access token
-    const loginResponse = await this.loginResponse(newCreatedUser);
-    const callBackUrl = `${additionalData.webRedirectUrl}?token=${loginResponse.data.accessToken}&provider=${additionalData.provider}`;
-
-    return {
-      callBackUrl,
-    };
-  }
-
-  async facebookAuthRequest(query: FacebookAuthRequestDTO & { role?: string }): Promise<string> {
-    const state = JSON.stringify({ provider: 'facebook', ...query });
-    const scopes = ['email'];
-    const authorizationUrl = `https://www.facebook.com/${ENV.facebook.apiVersion}/dialog/oauth?client_id=${ENV.facebook.clientId
-      }&redirect_uri=${ENV.facebook.redirectUrl}&scope=${scopes.join(',')}&state=${state}${ENV.facebook.configId ? `&config_id=${ENV.facebook.configId}` : ''}`;
-    // console.log('🚀 ~ AuthService ~ facebookAuthRequest ~ authorizationUrl:', authorizationUrl);
-    return authorizationUrl;
-  }
-
-  async facebookLogin(
-    userData: Record<string, any>,
-    state: string,
-  ): Promise<{
-    callBackUrl: string;
-  }> {
-    if (!userData) {
-      throw new BadRequestException('No user from facebook');
-    }
-    const additionalData = JSON.parse(state) as {
-      webRedirectUrl: string;
-      provider: string;
-      role?: string;
-    };
-    if (!userData?.email) {
-      throw new BadRequestException(
-        'Email is required, but your facebook account does not have it',
-      );
-      // userData.email = `${userData.providerIdentifier}@fibonaccibooks.com`;
-    }
-
-    const isExist = await this.userService.findOne({
-      where: { email: userData.email },
-    });
-
-    if (!isExist) {
-      const queryRunner = await startTransaction(this.dataSource);
-      try {
-        const newUserData: User = {
-          fullName: userData.firstName,
-          email: userData.email,
-          authProvider: ENUM_AUTH_PROVIDERS.FACEBOOK,
-          password: Crypto.randomBytes(20).toString('hex'),
-          isVerified: true,
-          avatar: userData.picture,
-        };
-        const createdUser = await queryRunner.manager.save(Object.assign(new User(), newUserData));
-
-        if (!createdUser) {
-          throw new BadRequestException('Cannot create user');
-        }
-
-        await commitTransaction(queryRunner);
-      } catch (error) {
-        // console.log('🚀 ~ AuthService ~ error:', error);
-        await rollbackTransaction(queryRunner);
-        throw error;
-      }
-    }
-
-    const newCreatedUser = await this.userService.findOne({
-      where: { email: userData.email },
-    });
-
-    if (!newCreatedUser) {
-      throw new BadRequestException('User not created');
-    }
-
-    //? Role assignment
-    if (additionalData?.role) {
-      const role = await this.roleService.findOne({
-        where: {
-          title: additionalData.role,
-        },
-      });
-      if (role) {
-        const isUserRoleExist = await this.userRoleService.findOne({
-          where: {
-            userId: newCreatedUser.id,
-            roleId: role.id,
-          },
-        });
-        if (!isUserRoleExist) {
-          await this.userRoleService.createOneBase({
-            userId: newCreatedUser.id,
-            roleId: role.id,
-          });
-        }
-      }
-    }
-
-    // Generate backend JWT token instead of using Facebook access token
-    const loginResponse = await this.loginResponse(newCreatedUser);
-    const callBackUrl = `${additionalData.webRedirectUrl}?token=${loginResponse.data.accessToken}&provider=${additionalData.provider}`;
-
-    return {
-      callBackUrl,
-    };
-  }
-
   async validate(payload: ValidateDTO): Promise<SuccessResponse> {
-    if (payload.provider === ENUM_AUTH_PROVIDERS.GOOGLE)
-      return this.validateUsingGoogleAuth(payload);
-    if (payload.provider === ENUM_AUTH_PROVIDERS.FACEBOOK)
-      return this.validateUsingFacebookAuth(payload);
     return this.validateUsingSystemAuth(payload);
-  }
-
-  async validateUsingFacebookAuth(payload: ValidateDTO): Promise<SuccessResponse> {
-    const fields = 'id,name,link,picture.width(400).height(400),email';
-
-    const facebookUrl = `https://graph.facebook.com/v22.0/me?fields=${fields}&access_token=${payload.token}`;
-
-    const facebookResponse = await this.http.get(facebookUrl);
-    const responseData = (await firstValueFrom(facebookResponse)).data;
-
-    let user: User = null;
-    if (!responseData?.email) {
-      throw new BadRequestException(
-        'Email is required, but your facebook account does not have it',
-      );
-    } else {
-      user = await this.userService.findOne({
-        where: { email: responseData.email },
-      });
-    }
-    let isNewUser = false;
-
-    if (!user) {
-      const avatarUrl = responseData?.picture?.data?.url
-        ? await this.fileUploadService.uploadFacebookProfilePic(responseData?.picture?.data?.url)
-        : null;
-
-      const payloadForNewUser = {
-        fullName: responseData.name,
-        email: responseData?.email,
-        avatar: avatarUrl,
-        authProvider: ENUM_AUTH_PROVIDERS.FACEBOOK,
-        authProviderMetaInfo: {
-          id: responseData.id,
-          email: responseData?.email,
-          name: responseData?.name,
-          provider: ENUM_AUTH_PROVIDERS.FACEBOOK,
-          authenticator: {
-            id: '',
-            title: '',
-          },
-        },
-        isVerified: true,
-      };
-
-      const createdUser = await this.userService.createOneBase(payloadForNewUser);
-      if (payload.role && createdUser) {
-        const targetRole = await this.roleService.findOrCreateRole(payload.role);
-        const createdUserRole = await this.userRoleService.createOneBase({
-          userId: createdUser.id,
-          roleId: targetRole.id,
-        });
-        if (targetRole.title === ENUM_ACL_DEFAULT_ROLES.CUSTOMER) {
-          const payloadForWorkerProfile = {
-            userId: createdUser.id,
-            fullName: createdUser.fullName,
-            email: createdUser.email ?? null,
-            phoneNumber: createdUser.phoneNumber ?? null,
-          } as UserProfileCreateDTO;
-          const profile = await this.userProfileService.createOne(payloadForWorkerProfile);
-          if (!profile) {
-            await this.userService.deleteOneBase(createdUser.id);
-            await this.userRoleService.deleteOneBase(createdUserRole.id);
-            throw new BadRequestException('Cannot create worker profile');
-          }
-          isNewUser = true;
-        }
-      }
-    }
-    const loginResponseData = await this.loginResponse(user);
-    return new SuccessResponse('Validated successfully', {
-      authSession: loginResponseData.data,
-      isNewUser,
-    });
-  }
-
-  async validateUsingGoogleAuth(payload: ValidateDTO): Promise<SuccessResponse> {
-    const googleUrl = `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${payload.token}`;
-
-    const googleResponse = await this.http.get(googleUrl);
-    const responseData = (await firstValueFrom(googleResponse)).data;
-
-    let user: User = null;
-    // let isEmailRequired = false;
-    if (!responseData?.email) {
-      // const userSocialAccount = await this.userSocialAccountService.findOneBase({
-      //   identifier: responseData.id,
-      // });
-      // user = await this.userService.findOne({
-      //   where: { id: userSocialAccount.userId },
-      // });
-      // if (!user?.email || user?.email == `${userSocialAccount.identifier}@fibonaccibooks.com`) {
-      //   isEmailRequired = true;
-      // }
-    } else {
-      user = await this.userService.findOne({
-        where: { email: responseData.email },
-      });
-    }
-    let isNewUser = false;
-    if (!user) {
-      const avatarUrl = null;
-
-      const payloadForNewUser = {
-        fullName: responseData.name,
-        email: responseData?.email,
-        avatar: avatarUrl,
-        authProvider: ENUM_AUTH_PROVIDERS.GOOGLE,
-        authProviderMetaInfo: {
-          id: responseData.id,
-          email: responseData?.email,
-          name: responseData?.name,
-          provider: ENUM_AUTH_PROVIDERS.GOOGLE,
-          authenticator: {
-            id: '',
-            title: '',
-          },
-        },
-        isVerified: true,
-      };
-
-      const createdUser = await this.userService.createOneBase(payloadForNewUser);
-      if (payload.role && createdUser) {
-        const targetRole = await this.roleService.findOrCreateRole(payload.role);
-        const createdUserRole = await this.userRoleService.createOneBase({
-          userId: createdUser.id,
-          roleId: targetRole.id,
-        });
-        if (targetRole.title === ENUM_ACL_DEFAULT_ROLES.CUSTOMER) {
-          const payloadForWorkerProfile = {
-            userId: createdUser.id,
-            fullName: createdUser.fullName,
-            email: createdUser.email ?? null,
-            phoneNumber: createdUser.phoneNumber ?? null,
-          } as UserProfileCreateDTO;
-          const profile = await this.userProfileService.createOne(payloadForWorkerProfile);
-          if (!profile) {
-            await this.userService.deleteOneBase(createdUser.id);
-            await this.userRoleService.deleteOneBase(createdUserRole.id);
-            throw new BadRequestException('Cannot create worker profile');
-          }
-          isNewUser = true;
-        }
-      }
-    }
-
-    const loginResponseData = await this.loginResponse(user);
-    return new SuccessResponse('Validated successfully', {
-      authSession: loginResponseData.data,
-      isNewUser,
-    });
   }
 
   async validateUsingSystemAuth(payload: ValidateDTO): Promise<SuccessResponse> {

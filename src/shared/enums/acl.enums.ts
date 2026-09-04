@@ -8,8 +8,6 @@ export enum ENUM_ACL_DEFAULT_ROLES {
 
 export enum ENUM_AUTH_PROVIDERS {
   SYSTEM = 'system',
-  GOOGLE = 'google',
-  FACEBOOK = 'facebook',
 }
 
 export enum ENUM_VERIFICATION_TYPES {
