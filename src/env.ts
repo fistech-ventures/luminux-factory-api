@@ -81,14 +81,6 @@ export const ENV = {
     otpExpireIn: toNumber(process.env.OTP_EXPIRES_IN),
     skipAuth: toBool(process.env.SKIP_AUTH),
   },
-
-  s3: {
-    endpoint: process.env.S3_ENDPOINT,
-    accessKey: process.env.S3_ACCESS_KEY,
-    secretKey: process.env.S3_SECRET_KEY,
-    bucket: process.env.S3_BUCKET,
-    folderPrefix: process.env.S3_FOLDER_PREFIX,
-  },
   r2: {
     accountId: process.env.R2_ACCOUNT_ID,
     accessKeyId: process.env.R2_ACCESS_KEY_ID,
@@ -96,21 +88,14 @@ export const ENV = {
     bucketName: process.env.R2_BUCKET_NAME,
     publicDomain: process.env.R2_PUBLIC_DOMAIN,
   },
-  supabase: {
-    url: process.env.SUPABASE_URL,
-    anonKey: process.env.SUPABASE_ANON_KEY,
-    serviceKey: process.env.SUPABASE_SERVICE_KEY,
-    bucket: process.env.SUPABASE_BUCKET,
-  },
+
   mail: {
     gmail: {
-      clientId: '373266192637-l50tghol2up6unt1d8b5g8mp30b6cfbm.apps.googleusercontent.com',
-      clientSecret: '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',
+      clientId: process.env.GMAIL_CLIENT_ID,
+      clientSecret: process.env.GMAIL_CLIENT_SECRET,
       tokens: {
-        access_token:
-          'ya29.a0AWY7Ckn9zPJ1RvZxbe72RiBHfvptjTJ-nuRNePOw_k_V18wW6YjSRmw33OCnJ62fj1U-0IsAT58oc9A-4bfyB0Vi26iYW2qDZB2MlqC58t46jrSbaxvwwIYsgeE6zZHVr2TFQR21fCeTOB17f0Y5P_-BqvVaaCgYKAW4SARISFQG1tDrpFYMPrbp_lD_aQ5sOdFl8rg0163',
-        refresh_token:
-          '1//0ggFw4VjyZ05zCgYIARAAGBASNwF-L9IrNfoHWdP_cOLp40nIEQ5m0-qRCqICG75UOgKQBnJCQTEXHGhwwXZpT_jd2EF_YLbiOPM',
+        access_token: process.env.GMAIL_ACCESS_TOKEN,
+        refresh_token: process.env.GMAIL_REFRESH_TOKEN,
         scope: 'https://www.googleapis.com/auth/gmail.send',
         token_type: 'Bearer',
         expiry_date: 1683057125997,
