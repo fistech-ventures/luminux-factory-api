@@ -17,25 +17,12 @@ export enum ENUM_TABLE_NAMES {
   SMS_GATEWAYS = 'sms_gateways',
   EMAIL_GATEWAYS = 'email_gateways',
 
-  // config
-  CACHE_KEYS = 'cache_keys',
-
   // Product module tables
   VARIANTS = 'variants',
   VARIANT_OPTIONS = 'variant_options',
   PRODUCTS = 'products',
   PRODUCT_VARIANT_OPTIONS = 'product_variant_options',
 
-<<<<<<< Updated upstream
-  // Offers module tables
-  OFFERS = 'offers',
-  DISCOUNT_RULES = 'discount_rules',
-  OFFER_SCOPES = 'offer_scopes',
-
-  // Coupons module tables
-  COUPONS = 'coupons',
-  COUPON_USAGES = 'coupon_usages',
-=======
   // Sales module tables
   CUSTOMERS = 'customers',
   SUPPLIERS = 'suppliers',
@@ -45,7 +32,6 @@ export enum ENUM_TABLE_NAMES {
   SALES = 'sales',
   SALE_ITEMS = 'sale_items',
   LEDGERS = 'ledgers',
->>>>>>> Stashed changes
 }
 
 export enum ENUM_COLUMN_TYPES {

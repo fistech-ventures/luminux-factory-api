@@ -7,12 +7,11 @@ import { InternalGalleryController } from './controllers/internal/gallery.intern
 import { FileStorageWebController } from './controllers/web/fileUpload.web.controller';
 import { GalleryWebController } from './controllers/web/gallery.web.controller';
 import { Gallery } from './entities/gallery.entity';
-import { FileUploadService } from './services/fileUpload.service';
 import { R2FileUploadService } from './services/r2FileUpload.service';
 import { GalleryService } from './services/gallery.service';
 
 const entities = [Gallery];
-const services = [FileUploadService, R2FileUploadService, GalleryService];
+const services = [R2FileUploadService, GalleryService];
 const subscribers = [];
 
 const webControllers = [FileStorageWebController, GalleryWebController];

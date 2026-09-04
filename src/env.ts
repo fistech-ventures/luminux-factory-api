@@ -60,23 +60,6 @@ export const ENV = {
     logging: toBool(process.env.DB_LOGGING),
   },
 
-  redis: {
-    queue: {
-      host: process.env.QUEUE_HOST,
-      port: toNumber(process.env.QUEUE_PORT),
-      password: process.env.QUEUE_PASSWORD,
-      username: process.env.QUEUE_USERNAME,
-    },
-    cache: {
-      isEnabled: toBool(process.env.CACHE_API_DATA),
-      ttl: toNumber(process.env.CACHE_TTL),
-      max: toNumber(process.env.CACHE_MAX),
-      storeHost: process.env.CACHE_STORE_HOST,
-      storePort: toNumber(process.env.CACHE_STORE_PORT),
-      storePassword: process.env.CACHE_STORE_PASSWORD,
-      storeUsername: process.env.CACHE_STORE_USERNAME,
-    },
-  },
   auth: {
     otpExpireIn: toNumber(process.env.OTP_EXPIRES_IN),
     skipAuth: toBool(process.env.SKIP_AUTH),

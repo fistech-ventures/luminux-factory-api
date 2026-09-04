@@ -365,33 +365,6 @@ export class AuthService {
       });
     }
 
-<<<<<<< Updated upstream
-    // Handle guest cart merge if provided
-    if (payload.guestCartItems && payload.guestCartItems.length > 0) {
-      try {
-        const guestCartMergePayload = { guestCartItems: payload.guestCartItems };
-        const authUser = { id: user.id, email: user.email, fullName: user.fullName, phoneNumber: user.phoneNumber };
-        await this.cartService.mergeGuestCartToUserCart(guestCartMergePayload, authUser);
-      } catch (error) {
-        console.error('Cart merge failed during login:', error);
-        // Continue with login even if cart merge fails
-      }
-    }
-
-    // Handle guest wishlist merge if provided
-    if (payload.guestWishlistItems && payload.guestWishlistItems.length > 0) {
-      try {
-        const guestWishlistMergePayload = { guestWishlistItems: payload.guestWishlistItems };
-        const authUser = { id: user.id, email: user.email, fullName: user.fullName, phoneNumber: user.phoneNumber };
-        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
-      } catch (error) {
-        console.error('Wishlist merge failed during login:', error);
-        // Continue with login even if wishlist merge fails
-      }
-    }
-
-=======
->>>>>>> Stashed changes
     return this.loginResponse(user, {
       remember: payload.remember,
       rememberDays: payload.rememberDays,

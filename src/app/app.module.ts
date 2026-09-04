@@ -5,7 +5,6 @@ import { DatabaseModule } from '@src/database/database.module';
 import { ExceptionFilter } from './filters';
 import { HelpersModule } from './helpers/helpers.module';
 import { GlobalRequestInterceptor, ResponseInterceptor } from './interceptors';
-import { RedisModule } from './modules/@redis/redis.module';
 import { AclModule } from './modules/acl/acl.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/guards/local-auth.guard';
@@ -13,15 +12,12 @@ import { GalleryModule } from './modules/gallery/gallery.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { ProductModule } from './modules/product/product.module';
 import { UserModule } from './modules/user/user.module';
-<<<<<<< Updated upstream
-=======
 import { CustomerModule } from './modules/customer/customer.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { ExpenseModule } from './modules/expense/expense.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
->>>>>>> Stashed changes
 import { UniqueValidatorPipe } from './pipes/uniqueValidator.pipe';
 
 const MODULES = [
@@ -29,32 +25,17 @@ const MODULES = [
   HelpersModule,
   ScheduleModule.forRoot(),
   AuthModule,
-  RedisModule,
   GalleryModule,
   AclModule,
   UserModule,
   NotificationModule,
   ProductModule,
-<<<<<<< Updated upstream
-  PublicationModule,
-  CartModule,
-  OrderModule,
-  OffersModule,
-  CouponsModule,
-  CMSModule,
-  FormModule,
-  ContactModule,
-  SupportModule,
-  LogisticModule,
-  NoteModule
-=======
   CustomerModule,
   SupplierModule,
   ExpenseModule,
   PurchaseModule,
   SalesModule,
   LedgerModule
->>>>>>> Stashed changes
 ];
 const PIPES = [UniqueValidatorPipe];
 

@@ -181,15 +181,6 @@ export async function findAllByRepo<T extends BaseEntity>(
     where: queryOptions as FindOptionsWhere<T>,
   };
 
-<<<<<<< Updated upstream
-  if (searchTerm && repo.target.valueOf().hasOwnProperty('SEARCH_TERMS')) {
-    let SEARCH_TERMS = options.SEARCH_TERMS || (repo.target.valueOf() as any).SEARCH_TERMS || [];
-
-    if (Object.keys(queryOptions).length) {
-      SEARCH_TERMS = SEARCH_TERMS.filter(
-        (term: string) => !Object.keys(queryOptions).includes(term),
-      );
-=======
   if (searchTerm) {
     try {
       let SEARCH_TERMS = options?.SEARCH_TERMS;
@@ -255,118 +246,8 @@ export async function findAllByRepo<T extends BaseEntity>(
     } catch (error) {
       // If SEARCH_TERMS access fails, continue without search filtering
       console.warn('Failed to access SEARCH_TERMS:', error);
->>>>>>> Stashed changes
     }
 
-    const where = [];
-    for (const term of SEARCH_TERMS) {
-      // Check if the search term is a relation
-      if (term?.includes('.')) {
-        const [relation, field] = term.split('.');
-        // Check if the relation is allowed
-        if (!relations.includes(relation)) {
-          continue;
-        }
-        where.push({
-          ...queryOptions,
-          [relation]: {
-            [field]: ILike(`%${searchTerm}%`),
-          },
-        });
-      } else if (term?.includes(':')) {
-        const [field, property] = term.split(':');
-        // search on jsonb property
-        where.push({
-          ...queryOptions,
-          [field]: Raw((alias) => `${alias} ->> '${property}' ILIKE '%${searchTerm}%'`),
-        });
-      } else {
-        where.push({
-          ...queryOptions,
-          [term]: ILike(`%${searchTerm}%`),
-        });
-      }
-    }
-    // for (const term of SEARCH_TERMS) {
-    //   // relation.field
-    //   if (term?.includes('.')) {
-    //     const [relation, field] = term.split('.');
-    //     if (!relations.includes(relation)) continue;
-
-    //     where.push({
-    //       ...queryOptions,
-    //       [relation]: {
-    //         [field]: Raw(
-    //           (alias) => `${alias}::text ILIKE :search`,
-    //           { search: `%${searchTerm}%` }
-    //         ),
-    //       },
-    //     });
-
-    //     // jsonb field:property
-    //   } else if (term?.includes(':')) {
-    //     const [field, property] = term.split(':');
-
-    //     where.push({
-    //       ...queryOptions,
-    //       [field]: Raw(
-    //         (alias) => `
-    //       (
-    //         -- object / string
-    //         (${alias} ->> '${property}')::text ILIKE :search
-
-    //         OR
-
-    //         -- array of strings
-    //         EXISTS (
-    //           SELECT 1
-    //           FROM jsonb_array_elements_text(
-    //             CASE 
-    //               WHEN jsonb_typeof(${alias} -> '${property}') = 'array'
-    //               THEN ${alias} -> '${property}'
-    //               ELSE '[]'::jsonb
-    //             END
-    //           ) AS elem
-    //           WHERE elem::text ILIKE :search
-    //         )
-    //       )
-    //     `,
-    //         { search: `%${searchTerm}%` }
-    //       ),
-    //     });
-
-    //     // normal column OR direct jsonb array column
-    //   } else {
-    //     where.push({
-    //       ...queryOptions,
-    //       [term]: Raw(
-    //         (alias) => `
-    //       (
-    //         -- treat everything as text
-    //         ${alias}::text ILIKE :search
-
-    //         OR
-
-    //         -- if it's a jsonb array
-    //         EXISTS (
-    //           SELECT 1
-    //           FROM jsonb_array_elements_text(
-    //             CASE 
-    //               WHEN jsonb_typeof(${alias}) = 'array'
-    //               THEN ${alias}
-    //               ELSE '[]'::jsonb
-    //             END
-    //           ) AS elem
-    //           WHERE elem::text ILIKE :search
-    //         )
-    //       )
-    //     `,
-    //         { search: `%${searchTerm}%` }
-    //       ),
-    //     });
-    //   }
-    // }
-    opts.where = where as FindManyOptions<T>['where'];
   }
 
   if (skip && !isNaN(skip)) opts.skip = skip;
