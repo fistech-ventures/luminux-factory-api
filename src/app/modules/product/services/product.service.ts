@@ -1,173 +1,144 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base';
-import { SuccessResponse } from '@src/app/types';
-import { asyncForEach, calculateDiscount, generateCode } from '@src/shared';
-import { isNotEmptyObject } from 'class-validator';
-import { DataSource, FindOptionsRelations, In, Not, QueryRunner, Repository } from 'typeorm';
-import { ENUM_INTERNAL_ORDER_STATUS } from '../../order/const';
-import { OrderService } from '../../order/services/order.service';
-import { ENUM_PRODUCT_TYPE } from '../const';
+import { asyncForEach } from '@src/shared';
+import { FindOptionsRelations, FindOptionsWhere, Not, Repository } from 'typeorm';
 import { ProductCreateDTO } from '../dtos/product/create.dto';
-import { ProductCategoryUpdateDTO, ProductGenreUpdateDTO, ProductMediaUpdateDTO, ProductUpdateDTO, ProductVariantUpdateDTO } from '../dtos/product/update.dto';
+import { ProductUpdateDTO } from '../dtos/product/update.dto';
 import { Product } from '../entities/product.entity';
-import { ProductGenre } from '../entities/productGenres.entity';
-import { ProductMedia } from '../entities/productMedia.entity';
 import { ProductVariantOption } from '../entities/productVariantOption.entity';
-import { ProductGenreService } from './productGenre.service';
-import { ProductMediaService } from './productMedia.service';
-import { ProductReviewService } from './productReview.service';
-import { ProductVariantOptionService } from './productVariantOption.service';
-import { ProductCategory } from '../entities/productCategories.entity';
-import { ProductCategoryService } from './productCategory.service';
-import { ENV } from '@src/env';
 
 @Injectable()
 export class ProductService extends BaseService<Product> {
   constructor(
     @InjectRepository(Product)
     private readonly _repo: Repository<Product>,
-    private readonly dataSource: DataSource,
-    private readonly productGenreService: ProductGenreService,
-    private readonly productCategoryService: ProductCategoryService,
-    private readonly productMediaService: ProductMediaService,
-    private readonly productVariantOptionService: ProductVariantOptionService,
-    @Inject(forwardRef(() => OrderService))
-    private readonly orderService: OrderService,
-    private readonly productReviewService: ProductReviewService,
   ) {
     super(_repo);
   }
 
-  async createProduct(payload: ProductCreateDTO, relations?: FindOptionsRelations<Product>): Promise<Product> {
-    const { tags, genres, categories, medias, hasVariant, variants, discountAmount = 0, stockQuantity = 0, discountType = 'flat', ...restPayload } = payload;
+  public readonly RELATIONS: FindOptionsRelations<Product> = {
+    variants: { variant: true, variantOption: true },
+  };
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  async createProduct(payload: ProductCreateDTO): Promise<Product> {
+    const { variants, ...restPayload } = payload;
 
-    let createdProduct = null;
+    let productStock = 0;
+    if (variants?.length) {
+      productStock = variants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0);
+    } else {
+      productStock = payload.stock || 0;
+    }
 
-    try {
-      if (discountAmount < 0) {
-        throw new BadRequestException('Discount amount can not be less than 0!')
-      }
-      // let productDiscount = 0;
-      let productStockQuantity = 0;
-      const productDiscount = calculateDiscount(
-        {
-          discountType: discountType,
-          amount: discountAmount
-        },
-        restPayload.mrp,
-        'discountAmount'
-      );
-      // if (discountType === 'flat')
-      //   productDiscount = discountAmount;
-      // else {
-      //   productDiscount = (restPayload.mrp * discountAmount) / 100;
-      // }
-      if (productDiscount > restPayload.mrp) throw new BadRequestException(`Discount amount can't be more than mrp!`)
-      const pSaleAmount = Math.round(restPayload.mrp - productDiscount);
-      const productCode = await this.generateUniqueCode(queryRunner);
-      createdProduct = await queryRunner.manager.save(Product, {
+    const productCode = payload.productCode?.trim();
+    if (!productCode) {
+      throw new BadRequestException('Product code is required');
+    }
+    await this.assertUniqueProductCode(productCode);
+
+    const saved = await this._repo.save(
+      Object.assign(new Product(), {
         ...restPayload,
-        stockQuantity,
-        discountAmount,
-        discountType,
-        hasVariant,
-        code: productCode,
-        sku: restPayload?.sku ?? productCode,
-        saleAmount: pSaleAmount,
-        tags: payload?.tags?.length ? [...new Set(payload.tags)] : []
-      }
-      );
+        productCode,
+        stock: productStock,
+      }),
+    );
 
-      if (!createdProduct) {
-        throw new BadRequestException('Product not created');
-      }
-      if (hasVariant) {
-        if (!variants || variants.length === 0) {
-          throw new BadRequestException('Add at least one variant');
+    if (variants?.length) {
+      await asyncForEach(variants, async (variant) => {
+        await this._repo.manager.save(
+          Object.assign(new ProductVariantOption(), {
+            ...variant,
+            sellingPrice: variant.sellingPrice ?? payload.sellingPrice ?? 0,
+            productId: saved.id,
+          }),
+        );
+      });
+    }
+
+    return this.findByIdBase(saved.id, { relations: this.RELATIONS });
+  }
+
+  async updateProduct(id: string, payload: ProductUpdateDTO): Promise<Product> {
+    const product = await this.isExist({ id: id as any });
+    const { variants } = payload;
+    const updates: any = { ...payload };
+    delete updates.variants;
+
+    if (updates.productCode) {
+      const productCode = updates.productCode.trim();
+      await this.assertUniqueProductCode(productCode, id);
+      updates.productCode = productCode;
+    }
+
+    if (Object.keys(updates).length) {
+      await this.updateOneBase(id, updates);
+    }
+
+    if (variants?.length) {
+      for (const variant of variants) {
+        if (variant.isDeleted) {
+          if (variant.id) {
+            await this._repo.manager.delete(ProductVariantOption, {
+              id: variant.id,
+              productId: id,
+            });
+          }
+          continue;
         }
-        await asyncForEach(variants, async (variant) => {
-          productStockQuantity = productStockQuantity + variant.stockQuantity;
-          const variantDiscount = calculateDiscount(
-            {
-              discountType: discountType,
-              amount: (discountAmount + variant.additionalDiscount)
-            },
-            (restPayload.mrp + variant.additionalMRP),
-            'discountAmount'
-          );
-          const vSaleAmount = Math.round((restPayload.mrp + variant.additionalMRP) - variantDiscount)
-          await queryRunner.manager.save(
+
+        const option = await this._repo.manager.findOne(ProductVariantOption, {
+          where: variant.id
+            ? { id: variant.id, productId: id }
+            : { productId: id, variantId: variant.variantId, variantOptionId: variant.variantOptionId },
+        });
+
+        if (option) {
+          await this._repo.manager.update(ProductVariantOption, { id: option.id }, {
+            sku: variant.sku ?? option.sku,
+            sellingPrice: variant.sellingPrice ?? option.sellingPrice ?? 0,
+            stockQuantity: variant.stockQuantity ?? option.stockQuantity ?? 0,
+            position: variant.position ?? option.position ?? 0,
+            variantId: variant.variantId ?? option.variantId,
+            variantOptionId: variant.variantOptionId ?? option.variantOptionId,
+          });
+        } else {
+          await this._repo.manager.save(
             Object.assign(new ProductVariantOption(), {
               ...variant,
-              saleAmount: vSaleAmount,
-              productId: createdProduct.id,
-            }),
-          );
-        });
-
-        if (productStockQuantity > 0) {
-          await queryRunner.manager.save(
-            Object.assign(new Product(), {
-              stockQuantity: productStockQuantity,
-              id: createdProduct.id,
+              sellingPrice: variant.sellingPrice ?? product.sellingPrice ?? 0,
+              productId: id,
             }),
           );
         }
-
       }
 
-      if (genres && genres.length > 0) {
-        await asyncForEach(genres, async (genre) => {
-          await queryRunner.manager.save(
-            Object.assign(new ProductGenre(), {
-              productId: createdProduct.id,
-              genreId: genre.genreId,
-            }),
-          );
-        });
-      }
-
-      if (categories && categories.length > 0) {
-        await asyncForEach(categories, async (category) => {
-          await queryRunner.manager.save(
-            Object.assign(new ProductCategory(), {
-              productId: createdProduct.id,
-              categoryId: category.categoryId,
-            }),
-          );
-        });
-      }
-      if (medias && medias.length > 0) {
-        await asyncForEach(medias, async (media) => {
-          await queryRunner.manager.save(
-            Object.assign(new ProductMedia(), {
-              productId: createdProduct.id,
-              galleryId: media.galleryId,
-            }),
-          );
-        });
-      }
-      await queryRunner.commitTransaction();
-      return this.findOne({
-        where: {
-          id: createdProduct.id,
-        },
-        relations,
+      // When a product's variants are managed through the product, its total
+      // stock mirrors the sum of the variant option stocks.
+      const optionRows = await this._repo.manager.find(ProductVariantOption, {
+        where: { productId: id },
+        select: { id: true, stockQuantity: true },
       });
+      const totalStock = optionRows.reduce((sum, o) => sum + (o.stockQuantity || 0), 0);
+      await this.updateOneBase(id, { stock: totalStock } as any);
+    }
 
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
+    return this.findByIdBase(id, { relations: this.RELATIONS });
+  }
+
+  async assertUniqueProductCode(code: string, excludeId?: string): Promise<void> {
+    const where: FindOptionsWhere<Product> = { productCode: code };
+    if (excludeId) {
+      where.id = Not(excludeId);
+    }
+    const isExist = await this._repo.exists({ where });
+    if (isExist) {
+      throw new BadRequestException(`Product code already exists: ${code}`);
     }
   }
 
+<<<<<<< Updated upstream
   async updateProduct(
     id: string,
     payload: ProductUpdateDTO,
@@ -413,451 +384,28 @@ export class ProductService extends BaseService<Product> {
     } finally {
       await queryRunner.release();
     }
+=======
+  async updateStock(id: string, quantity: number): Promise<Product> {
+    const product = await this.isExist({ id: id as any });
+    const newStock = Math.max(0, (product.stock || 0) + quantity);
+    return this.updateOneBase(id, { stock: newStock } as any);
+>>>>>>> Stashed changes
   }
 
-  async generateUniqueCode(queryRunner: QueryRunner): Promise<string> {
-    let counter = 0;
-    let isExist = true;
-    let code: string;
+  async updateSourcingPrice(id: string, newSourcingPrice: number): Promise<Product> {
+    const product = await this.isExist({ id: id as any });
+    const currentSourcingPrice = product.sourcingPrice || 0;
+    const averageSourcingPrice = (currentSourcingPrice + newSourcingPrice) / 2;
 
-    while (isExist) {
-      code = `${generateCode(ENV.systemConfig.productCodePrefix)}${counter}`;
+    const updates: any = { sourcingPrice: averageSourcingPrice };
 
-      isExist = await queryRunner.manager.exists(Product, {
-        where: { code },
-      });
-
-      if (isExist) {
-        counter++;
-      }
-    }
-    return code;
-  }
-
-  async checkProductIfOrderdByUser(userId: string, productId: string): Promise<SuccessResponse> {
-    const isExist = await this.orderService.findOne({
-      where:
-        [
-          {
-            userId,
-            status: ENUM_INTERNAL_ORDER_STATUS.DELIVERED,
-            items: [{ productId }]
-          },
-          {
-            userId,
-            status: ENUM_INTERNAL_ORDER_STATUS.DELIVERED,
-            items: [{ productVariant: { productId } }]
-          }
-        ],
-    })
-    if (isExist)
-      return new SuccessResponse('', {
-        hasOrdered: true,
-        orderId: isExist.id
-      })
-    else
-      return new SuccessResponse('', {
-        hasOrdered: false,
-        orderId: null
-      })
-  }
-
-  async getProductBySlugOrId(idOrSlug: string, by: 'id' | 'slug' = 'slug'): Promise<Product> {
-    return this.findOne({
-      where: by === 'id' ? { id: idOrSlug } : { slug: idOrSlug },
-      relations: {
-        author: true,
-        translator: true,
-        publication: true,
-        category: true,
-        subcategory: true,
-        brand: true,
-        variants: { variant: true, variantOption: true },
-        medias: { gallery: true },
-        // tags: { tag: true },
-        genres: { genre: true },
-        categories: { category: true },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        title: true,
-        subTitle: true,
-        slug: true,
-        alias: true,
-        code: true,
-        thumb: true,
-        videoUrl: true,
-        flap: true,
-        mrp: true,
-        saleAmount: true,
-        discountType: true,
-        discountAmount: true,
-        sku: true,
-        stockStatus: true,
-        language: true,
-        origin: true,
-        pageCount: true,
-        hasVariant: true,
-        ratingPointAvg: true,
-        ratingCount: true,
-        description: true,
-        shortDescription: true,
-        position: true,
-        categoryId: true,
-        subcategoryId: true,
-        subcategory: { id: true, title: true },
-        authorId: true,
-        translatorId: true,
-        publicationId: true,
-        brandId: true,
-        type: true,
-        author: { id: true, name: true },
-        translator: { id: true, name: true },
-        publication: { id: true, name: true },
-        category: { id: true, title: true },
-        brand: { id: true, title: true },
-        tags: true,
-        genres: true,
-        // categories: { category: { id: true, title: true } },
-        categories: true,
-      }
-    });
-  }
-
-  async getRelatedProducts(productId: string, limit = 10): Promise<Product[]> {
-    // Step 1: Fetch minimal info
-    const product = await this.findOne({
-      where: { id: productId },
-      relations: {
-        // tags: true,
-        genres: true,
-        categories: true
-      },
-      select: {
-        id: true,
-        type: true,
-        categoryId: true,
-        tags: true,
-        genres: { genreId: true },
-        categories: { categoryId: true },
-      },
-    });
-
-    if (!product) throw new NotFoundException('Product not found');
-
-    const tags = product.tags ?? [];
-    const genreIds = product.genres?.map(g => g.genreId) ?? [];
-    const categoryIds = product.categories?.map(c => c.categoryId) ?? [];
-
-    // Step 2: Build candidate query
-    const qb = this._repo
-      .createQueryBuilder('p')
-      .select([
-        'p.id',
-        'p.title',
-        'p.slug',
-        'p.code',
-        'p.thumb',
-        'p.mrp',
-        'p.saleAmount',
-        'p.discountType',
-        'p.discountAmount',
-        'p.stockStatus',
-        'p.hasVariant',
-        'p.ratingPointAvg',
-        'p.ratingCount',
-      ])
-      .where('p.id != :id', { id: product.id })
-      .take(limit);
-
-    // Filter by matching tags (OR condition with categories)
-    const conditions: string[] = [];
-    const params: any = {};
-    
-    if (tags.length) {
-      conditions.push('p.tags @> :tags');
-      params.tags = JSON.stringify(tags);
-    }
-    
-    if (categoryIds.length) {
-      qb.leftJoin('p.categories', 'pc');
-      conditions.push('pc.categoryId IN (:...categoryIds)');
-      params.categoryIds = categoryIds;
+    // Never let a product be sold below cost: if the averaged sourcing price
+    // exceeds the current selling price, bump the selling price up to match it.
+    // Selling price is never lowered here and stays user-editable otherwise.
+    if ((product.sellingPrice || 0) < averageSourcingPrice) {
+      updates.sellingPrice = averageSourcingPrice;
     }
 
-    // For BOOK type, also filter by genres
-    if (product.type === ENUM_PRODUCT_TYPE.BOOK && genreIds.length) {
-      qb.leftJoin('p.genres', 'pg');
-      conditions.push('pg.genreId IN (:...genreIds)');
-      params.genreIds = genreIds;
-    }
-
-    if (conditions.length) {
-      qb.andWhere(`(${conditions.join(' OR ')})`, params);
-    }
-
-    // Step 3: Faster ordering
-    qb.orderBy('p.id', 'DESC'); // deterministic + indexed
-
-    // Step 4: Execute
-    return qb.getMany();
-  }
-
-  async getProductWithRelatedProducts(idOrSlug: string, by: 'id' | 'slug' = 'slug'): Promise<Product & { relatedProducts: Product[] }> {
-    // Fetch main product
-    const product = await this.findOne({
-      where: by === 'id' ? { id: idOrSlug } : { slug: idOrSlug },
-      relations: {
-        author: true,
-        translator: true,
-        publication: true,
-        category: true,
-        subcategory: true,
-        brand: true,
-        variants: {
-          variant: true,
-          variantOption: true
-        },
-        medias: { gallery: true },
-        genres: { genre: true },
-        categories: { category: true },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        title: true,
-        subTitle: true,
-        slug: true,
-        alias: true,
-        code: true,
-        thumb: true,
-        videoUrl: true,
-        flap: true,
-        mrp: true,
-        saleAmount: true,
-        discountType: true,
-        discountAmount: true,
-        stockStatus: true,
-        hasVariant: true,
-        ratingPointAvg: true,
-        ratingCount: true,
-        description: true,
-        shortDescription: true,
-        position: true,
-        categoryId: true,
-        subcategoryId: true,
-        subcategory: { id: true, title: true },
-        authorId: true,
-        translatorId: true,
-        publicationId: true,
-        brandId: true,
-        type: true,
-        author: { id: true, name: true },
-        translator: { id: true, name: true },
-        publication: { id: true, name: true },
-        category: { id: true, title: true },
-        brand: { id: true, title: true },
-        tags: true,
-        genres: { genre: { id: true, title: true } },
-        categories: { category: { id: true, title: true } },
-      }
-    });
-
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
-    // Get tag IDs
-    // const tagIds = product.tags?.map(t => t.tagId) ?? [];
-
-    let relatedProducts: Product[] = [];
-
-    if (product.tags?.length) {
-      const tags = product.tags;
-      // Tag-based related products
-      relatedProducts = await this._repo
-        .createQueryBuilder('p')
-        .select([
-          'p.id',
-          'p.title',
-          'p.slug',
-          'p.code',
-          'p.thumb',
-          'p.mrp',
-          'p.saleAmount',
-          'p.discountType',
-          'p.discountAmount',
-          'p.stockStatus',
-          'p.hasVariant',
-          'p.ratingPointAvg',
-          'p.ratingCount',
-        ])
-        // .leftJoin('p.tags', 'tag')
-        .where('tags @> :tags', { tags: JSON.stringify(tags) })
-        .andWhere('p.id != :id', { id: product.id })
-        .addSelect('RANDOM()', 'rand') // <-- Add RANDOM() to select list
-        .orderBy('rand')               // <-- Order by alias instead
-        .take(10)
-        .getMany();
-    }
-
-    // Fallback to same-category if no related found via tags
-    if (!relatedProducts.length) {
-      const genreIds = product.genres?.map(g => g.genreId) ?? [];
-      if (product.type === ENUM_PRODUCT_TYPE.BOOK && genreIds.length) {
-        // Tag-based related products
-        relatedProducts = await this._repo
-          .createQueryBuilder('p')
-          .leftJoin('p.genres', 'genre')
-          .select([
-            'p.id',
-            'p.title',
-            'p.slug',
-            'p.code',
-            'p.thumb',
-            'p.mrp',
-            'p.saleAmount',
-            'p.discountType',
-            'p.discountAmount',
-            'p.stockStatus',
-            'p.hasVariant',
-            'p.ratingPointAvg',
-            'p.ratingCount',
-          ])
-          .where('genre.genreId IN (:...genreIds)', { genreIds })
-          .andWhere('p.id != :id', { id: product.id })
-          .addSelect('RANDOM()', 'rand') // <-- Add RANDOM() to select list
-          .orderBy('rand')               // <-- Order by alias instead
-          .take(10)
-          .getMany();
-      }
-      if (!relatedProducts.length) {
-        relatedProducts = await this.find({            where: { categoryId: In(product.categories?.map(c => c.categoryId) ?? []), id: Not(product.id) },
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-            code: true,
-            thumb: true,
-            videoUrl: true,
-            mrp: true,
-            saleAmount: true,
-            discountType: true,
-            discountAmount: true,
-            stockStatus: true,
-            hasVariant: true,
-            ratingPointAvg: true,
-            ratingCount: true,
-          },
-          take: 10,
-          order: { createdAt: 'DESC' },
-        });
-      }
-    }
-    const result = {
-      ...product,
-      relatedProducts,
-    };
-    return result;
-  }
-
-  async updateProductRating(productId: string): Promise<Product> {
-    // 1. Get all reviews for the product
-    const reviews = await this.productReviewService.find({
-      where: { product: { id: productId } },
-      select: { 'rating': true },
-    });
-
-    if (reviews.length === 0) {
-      // reset to default if no reviews
-      return this.repo.save({
-        id: productId,
-        ratingCount: 0,
-        ratingPointTotal: 0,
-        ratingPointAvg: 0,
-        ratings: { one: 0, two: 0, three: 0, four: 0, five: 0 },
-      });
-    }
-
-    // 2. Count totals
-    const ratingCount = reviews.length;
-    const ratingPointTotal = reviews.reduce((sum, r) => sum + (r.rating ?? 0), 0);
-    const ratingPointAvg = Math.round(ratingPointTotal / ratingCount);
-
-    // 3. Prepare histogram
-    const ratings = { one: 0, two: 0, three: 0, four: 0, five: 0 };
-    reviews.forEach((r) => {
-      if (r.rating && r.rating >= 1 && r.rating <= 5) {
-        const key = ['one', 'two', 'three', 'four', 'five'][r.rating - 1] as keyof typeof ratings;
-        ratings[key] += 1;
-      }
-    });
-
-    // 4. Update product
-    return this.repo.save({
-      id: productId,
-      ratingCount,
-      ratingPointTotal,
-      ratingPointAvg,
-      ratings,
-    });
-  }
-
-  /**
- * Incrementally updates product rating stats when a new review is added.
- */
-  async applyNewRating(productId: string, newRating: number): Promise<Product> {
-    const product = await this.repo.findOneByOrFail({ id: productId });
-    // Update histogram
-    const ratings = { ...product.ratings };
-    const key = ['one', 'two', 'three', 'four', 'five'][newRating - 1] as keyof typeof ratings;
-    ratings[key] = (ratings[key] ?? 0) + 1;
-
-    // Update counts
-    const ratingCount = (product.ratingCount ?? 0) + 1;
-    const ratingPointTotal = (product.ratingPointTotal ?? 0) + newRating;
-    const ratingPointAvg = Math.round(ratingPointTotal / ratingCount);
-
-    // Save back
-    return this.repo.save({
-      ...product,
-      ratingCount,
-      ratingPointTotal,
-      ratingPointAvg,
-      ratings,
-    });
-  }
-
-  /**
-  * Adjusts stats when an existing review’s rating is changed.
-  */
-  async updateRating(productId: string, oldRating: number, newRating: number): Promise<Product> {
-    const product = await this.repo.findOneByOrFail({ id: productId });
-
-    const ratings = { ...product.ratings };
-
-    // decrement old bucket
-    if (oldRating >= 1 && oldRating <= 5) {
-      const oldKey = ['one', 'two', 'three', 'four', 'five'][oldRating - 1] as keyof typeof ratings;
-      ratings[oldKey] = Math.max((ratings[oldKey] ?? 1) - 1, 0);
-    }
-
-    // increment new bucket
-    if (newRating >= 1 && newRating <= 5) {
-      const newKey = ['one', 'two', 'three', 'four', 'five'][newRating - 1] as keyof typeof ratings;
-      ratings[newKey] = (ratings[newKey] ?? 0) + 1;
-    }
-
-    // Update totals
-    const ratingPointTotal = (product.ratingPointTotal ?? 0) - oldRating + newRating;
-    const ratingPointAvg = Math.round(ratingPointTotal / (product.ratingCount ?? 1));
-
-    return this.repo.save({
-      ...product,
-      ratingPointTotal,
-      ratingPointAvg,
-      ratings,
-    });
+    return this.updateOneBase(id, updates as any);
   }
 }

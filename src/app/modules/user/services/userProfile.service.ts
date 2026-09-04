@@ -16,7 +16,7 @@ import { UserProfileCreateDTO } from '../dtos/userProfile/create.dto';
 import { UserProfileFilterDTO } from '../dtos/userProfile/filter.dto';
 import { UserProfileUpdateDTO, UserProfileVerifyDTO } from '../dtos/userProfile/update.dto';
 import { UserProfile } from '../entities/userProfile.entity';
-import { SupabaseFileUploadService } from '../../gallery/services/supabaseFileUpload.service';
+import { R2FileUploadService } from '../../gallery/services/r2FileUpload.service';
 
 @Injectable()
 export class UserProfileService {
@@ -25,7 +25,7 @@ export class UserProfileService {
     private readonly repo: Repository<UserProfile>,
     private readonly dataSource: DataSource,
     private readonly htmlHelper: HtmlHelper,
-    private readonly fileUploadService: SupabaseFileUploadService,
+    private readonly fileUploadService: R2FileUploadService,
   ) { }
 
   async findById(id: string, options?: IFindBaseOptions<UserProfile>): Promise<UserProfile> {

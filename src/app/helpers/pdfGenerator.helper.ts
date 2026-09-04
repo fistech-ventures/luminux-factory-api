@@ -371,9 +371,16 @@ export class PdfGeneratorHelper implements OnModuleDestroy {
       this.activePagesMap.set(pageId, { page, createdAt: Date.now() });
       this.totalRunningPages++;
 
-      // Set content and wait for load
+      // Set content, then wait until the network is idle so async resources
+      // (e.g. the business logo image) finish loading before printing.
+      // Note: 'networkidle0' was removed from waitUntil in Puppeteer v24 -
+      // the equivalent is page.waitForNetworkIdle().
       await page.setContent(htmlContent, {
-        waitUntil: 'networkidle0',
+        waitUntil: 'load',
+        timeout: this.pageTimeout - 5000,
+      });
+      await page.waitForNetworkIdle({
+        idleTime: 500,
         timeout: this.pageTimeout - 5000,
       });
 

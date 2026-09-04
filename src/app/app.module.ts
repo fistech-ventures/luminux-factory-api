@@ -9,25 +9,19 @@ import { RedisModule } from './modules/@redis/redis.module';
 import { AclModule } from './modules/acl/acl.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/guards/local-auth.guard';
-import { AuthorModule } from './modules/author/author.module';
-import { CMSModule } from './modules/cms/cms.module';
-import { CommonModule } from './modules/common/common.module';
-import { FormModule } from './modules/form/form.module';
 import { GalleryModule } from './modules/gallery/gallery.module';
-import { ContactModule } from './modules/contact/contact.module';
-import { LogisticModule } from './modules/logistic/logistic.module';
-import { NoteModule } from './modules/note/note.module';
 import { NotificationModule } from './modules/notification/notification.module';
-import { CartModule } from './modules/cart/cart.module';
-import { OrderModule } from './modules/order/order.module';
-import { OffersModule } from './modules/offers/offers.module';
-import { CouponsModule } from './modules/coupons/coupons.module';
-import { PaymentGatewayModule } from './modules/payment-gateway/paymentGateway.module';
 import { ProductModule } from './modules/product/product.module';
-import { PublicationModule } from './modules/publication/publication.module';
-import { SupportModule } from './modules/support/support.module';
-import { TransactionModule } from './modules/transaction/transaction.module';
 import { UserModule } from './modules/user/user.module';
+<<<<<<< Updated upstream
+=======
+import { CustomerModule } from './modules/customer/customer.module';
+import { SupplierModule } from './modules/supplier/supplier.module';
+import { ExpenseModule } from './modules/expense/expense.module';
+import { PurchaseModule } from './modules/purchase/purchase.module';
+import { SalesModule } from './modules/sales/sales.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
+>>>>>>> Stashed changes
 import { UniqueValidatorPipe } from './pipes/uniqueValidator.pipe';
 
 const MODULES = [
@@ -39,12 +33,9 @@ const MODULES = [
   GalleryModule,
   AclModule,
   UserModule,
-  CommonModule,
   NotificationModule,
-  PaymentGatewayModule,
-  TransactionModule,
-  AuthorModule,
   ProductModule,
+<<<<<<< Updated upstream
   PublicationModule,
   CartModule,
   OrderModule,
@@ -56,6 +47,14 @@ const MODULES = [
   SupportModule,
   LogisticModule,
   NoteModule
+=======
+  CustomerModule,
+  SupplierModule,
+  ExpenseModule,
+  PurchaseModule,
+  SalesModule,
+  LedgerModule
+>>>>>>> Stashed changes
 ];
 const PIPES = [UniqueValidatorPipe];
 

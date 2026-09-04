@@ -1,2 +1,0 @@
-export const SSL_COMMERZ_CLIENT = 'SSL_COMMERZ_CLIENT';
-export const CURRENCY_CODE = '050';

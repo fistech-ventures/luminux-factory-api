@@ -19,8 +19,8 @@ jobs:
           script: |
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            cd /var/www/ecommerce-saas-api
+            cd /var/www/luminux-showroom-api
             git pull origin main
             yarn install
             yarn build
-            pm2 restart ecommerce-saas-api
+            pm2 restart luminux-showroom-api

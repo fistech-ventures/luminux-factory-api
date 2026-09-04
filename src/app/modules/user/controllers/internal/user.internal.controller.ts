@@ -3,8 +3,6 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InternalRequestInterceptor } from '@src/app/interceptors';
 import { FilterRoleDTO } from '@src/app/modules/acl/dtos';
 import { Role } from '@src/app/modules/acl/entities/role.entity';
-import { UserInvoice } from '@src/app/modules/transaction/entities/userInvoice.entity';
-import { UserInvoiceService } from '@src/app/modules/transaction/services/userInvoice.service';
 import { SuccessResponse } from '@src/app/types';
 import { ENUM_ACL_DEFAULT_ROLES } from '@src/shared';
 import { FindOptionsRelations, In } from 'typeorm';
@@ -21,7 +19,6 @@ import { IAuthUser } from '@src/app/interfaces';
 export class UserInternalController {
   constructor(
     private readonly service: UserService,
-    private readonly userInvoiceService: UserInvoiceService
   ) { }
 
   RELATIONS: FindOptionsRelations<User> = {
@@ -41,11 +38,6 @@ export class UserInternalController {
       delete filter?.roles
     }
     return this.service.findAllBase(filter, { relations: this.RELATIONS });
-  }
-
-  @Get(':id/invoice')
-  async findInvoiceById(@Param('id') id: string): Promise<UserInvoice> {
-    return this.userInvoiceService.findOneBase({ userId: id, isActive: true }, { relations: { order: { items: true } } });
   }
 
   @Get(':id/available-roles')

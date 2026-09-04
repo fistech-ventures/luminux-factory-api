@@ -1,0 +1,156 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { HtmlHelper, PdfGeneratorHelper, R2UploadHelper } from '@src/app/helpers';
+import { GlobalConfigService } from '@src/app/modules/globalConfig/services/globalConfig.service';
+import { Repository } from 'typeorm';
+import dayjs from 'dayjs';
+import { Sale } from '../entities/sale.entity';
+import { SaleItem } from '../entities/sale-item.entity';
+
+interface IInvoiceItem {
+  title: string;
+  variantLabel?: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+/**
+ * Builds and stores the PDF invoice for a sale.
+ *
+ * - The layout comes from views/pdf-templates/sale-invoice.template.hbs and is
+ *   rendered with the business header from the global config.
+ * - The PDF is generated with the shared puppeteer helper and uploaded to
+ *   Cloudflare R2; the public URL is stored on the sale (invoiceUrl).
+ * - Generation is intentionally non-fatal: callers must not fail a sale
+ *   because PDF/storage hiccuped. The GET /internal/sales/:id/invoice
+ *   endpoint can regenerate the PDF on demand from live data.
+ */
+@Injectable()
+export class InvoiceService {
+  constructor(
+    @InjectRepository(Sale)
+    private readonly saleRepo: Repository<Sale>,
+    private readonly htmlHelper: HtmlHelper,
+    private readonly pdfGeneratorHelper: PdfGeneratorHelper,
+    private readonly r2UploadHelper: R2UploadHelper,
+    private readonly globalConfigService: GlobalConfigService,
+  ) {}
+
+  private readonly logger = new Logger(InvoiceService.name);
+
+  private readonly saleRelations = {
+    items: { product: true, variant: { variant: true, variantOption: true } },
+    customer: true,
+    soldBy: true,
+  };
+
+  /** Loads a sale with everything the invoice needs. */
+  async findSaleWithInvoiceData(id: string): Promise<Sale> {
+    return await this.saleRepo.findOne({
+      where: { id },
+      relations: this.saleRelations,
+    });
+  }
+
+  /** Renders the invoice HTML for a (fully loaded) sale. */
+  async renderInvoiceHtml(sale: Sale): Promise<string> {
+    let business: Record<string, any> = {};
+    try {
+      const config = await this.globalConfigService.getConfig();
+      business = {
+        name: config.name,
+        logo: config.logo,
+        address: config.address,
+        phone: config.phone,
+        currency: config.currency ? `${config.currency}` : '',
+      };
+    } catch (error) {
+      this.logger.warn('Global config unavailable for invoice, using empty business block', error);
+    }
+
+    const items: IInvoiceItem[] = (sale.items || []).map((item) => ({
+      title: item.product?.title || 'Unknown product',
+      variantLabel: this.getVariantLabel(item),
+      quantity: item.quantity,
+      unitPrice: this.round2(item.sellingPrice),
+      total: this.round2(item.totalAmount),
+    }));
+
+    const data = {
+      business,
+      invoiceCode: sale.invoiceNo || sale.id,
+      date: sale.date ? dayjs(sale.date).format('DD MMM YYYY') : '',
+      paymentStatus: this.getPaymentStatus(sale),
+      customerName: sale.customer?.name || 'Walk-in Customer',
+      customerPhone: sale.customer?.contactNumber,
+      customerAddress: sale.customer?.address,
+      customerCompany: sale.customer?.companyName,
+      soldByName: sale.soldBy?.fullName || '—',
+      paymentMethod: sale.paymentMethod || '—',
+      items,
+      subTotal: this.round2(sale.totalAmount),
+      discount: this.round2(sale.discount),
+      grandTotal: this.round2(sale.grandTotal),
+      paidAmount: this.round2(sale.paidAmount),
+      dueAmount: this.round2(sale.dueAmount),
+      currencyName: 'Taka',
+    };
+
+    return await this.htmlHelper.createHtmlContent(data, 'sale-invoice');
+  }
+
+  /** Generates the invoice PDF for a (fully loaded) sale. */
+  async generateInvoicePdf(sale: Sale): Promise<Buffer> {
+    const html = await this.renderInvoiceHtml(sale);
+    return await this.pdfGeneratorHelper.createPDF(html, { format: 'A4' });
+  }
+
+  /**
+   * Generates the invoice PDF for a sale and stores it, returning the public
+   * URL. Never throws for storage/PDF failures - returns null instead so the
+   * caller can keep the sale intact.
+   */
+  async generateAndStoreInvoice(saleId: string): Promise<string | null> {
+    try {
+      const sale = await this.findSaleWithInvoiceData(saleId);
+      if (!sale) return null;
+
+      const pdfBuffer = await this.generateInvoicePdf(sale);
+      const fileName = `${sale.invoiceNo || sale.id}.pdf`;
+
+      const url = await this.r2UploadHelper.uploadBinary(
+        'invoices',
+        pdfBuffer,
+        fileName,
+        'application/pdf',
+      );
+
+      if (url) {
+        await this.saleRepo.update({ id: sale.id }, { invoiceUrl: url });
+      }
+      return url || null;
+    } catch (error) {
+      this.logger.error(`Invoice generation failed for sale ${saleId}`, error);
+      return null;
+    }
+  }
+
+  /** Rounds to 2 decimals and returns a plain number (safe for the words helper). */
+  private round2(value: number): number {
+    return Math.round((value || 0) * 100) / 100;
+  }
+
+  private getPaymentStatus(sale: Sale): 'PAID' | 'PARTIAL' | 'DUE' {
+    if (!sale.dueAmount || sale.dueAmount <= 0) return 'PAID';
+    if (!sale.paidAmount || sale.paidAmount <= 0) return 'DUE';
+    return 'PARTIAL';
+  }
+
+  private getVariantLabel(item: SaleItem): string | undefined {
+    const variantTitle = item.variant?.variant?.title;
+    const optionTitle = item.variant?.variantOption?.title;
+    if (variantTitle && optionTitle) return `${variantTitle}: ${optionTitle}`;
+    return optionTitle || variantTitle || undefined;
+  }
+}

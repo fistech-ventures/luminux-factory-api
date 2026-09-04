@@ -7,7 +7,7 @@ import { ENUM_TABLE_NAMES, asyncForEach } from '@src/shared';
 import { DataSource, In, Repository } from 'typeorm';
 import { CreateGalleryDTO } from '../dtos/create.dto';
 import { Gallery } from '../entities/gallery.entity';
-import { SupabaseFileUploadService } from './supabaseFileUpload.service';
+import { R2FileUploadService } from './r2FileUpload.service';
 
 @Injectable()
 export class GalleryService extends BaseService<Gallery> {
@@ -15,7 +15,7 @@ export class GalleryService extends BaseService<Gallery> {
     @InjectRepository(Gallery)
     public readonly _repo: Repository<Gallery>,
     private readonly dataSource: DataSource,
-    private readonly fileUploadService: SupabaseFileUploadService,
+    private readonly fileUploadService: R2FileUploadService,
   ) {
     super(_repo);
   }
@@ -42,7 +42,7 @@ export class GalleryService extends BaseService<Gallery> {
     let createdGallery = null;
 
     try {
-      const fileData = await this.fileUploadService.uploadToSupabase({ file });
+      const fileData = await this.fileUploadService.uploadToR2({ file });
       if (!fileData) {
         throw new Error('File not uploaded');
       }
@@ -122,7 +122,7 @@ export class GalleryService extends BaseService<Gallery> {
   async removeGallery(id: string): Promise<SuccessResponse> {
     const deletedItem = await this.findByIdBase(id);
     try {
-      await this.fileUploadService.deleteFromSupabase(deletedItem?.key);
+      await this.fileUploadService.deleteFromR2(deletedItem?.key);
       return this.deleteOneBase(id);
     } catch (error) {
       throw error;
@@ -133,7 +133,7 @@ export class GalleryService extends BaseService<Gallery> {
     try {
       const itemsToDelete = await this.find({ where: { id: In(ids) } });
       await asyncForEach(itemsToDelete, async (item) => {
-        await this.fileUploadService.deleteFromSupabase(item?.key);
+        await this.fileUploadService.deleteFromR2(item?.key);
       });
       return this.deleteBulkBase(ids);
     } catch (error) {

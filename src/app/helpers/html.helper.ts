@@ -88,7 +88,10 @@ export class HtmlHelper {
         return value !== undefined ? value : 'N/A';
       });
 
-      Handlebars.registerHelper('compare', (v1, v2, operator, options) => {
+      // Handlebars invokes block helpers with `this` bound to the current
+      // data context; options.fn/inverse must receive it to re-render the
+      // block body against that same context.
+      Handlebars.registerHelper('compare', function (v1, v2, operator, options) {
         switch (operator) {
           case '==':
             return v1 == v2 ? options.fn(this) : options.inverse(this);

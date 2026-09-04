@@ -89,6 +89,13 @@ export const ENV = {
     bucket: process.env.S3_BUCKET,
     folderPrefix: process.env.S3_FOLDER_PREFIX,
   },
+  r2: {
+    accountId: process.env.R2_ACCOUNT_ID,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    bucketName: process.env.R2_BUCKET_NAME,
+    publicDomain: process.env.R2_PUBLIC_DOMAIN,
+  },
   supabase: {
     url: process.env.SUPABASE_URL,
     anonKey: process.env.SUPABASE_ANON_KEY,
@@ -187,9 +194,9 @@ export const ENV = {
       phone2: '',
       email: '',
       address: '',
-      logo: ''
-    }
-  }
+      logo: '',
+    },
+  },
 };
 
 export const ormConfig = {

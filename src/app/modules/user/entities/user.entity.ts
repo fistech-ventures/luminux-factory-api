@@ -1,11 +1,7 @@
 import { BaseEntity } from '@src/app/base';
 import { ENUM_AUTH_PROVIDERS, ENUM_COLUMN_TYPES, ENUM_TABLE_NAMES } from '@src/shared';
 import { Type } from 'class-transformer';
-import { Column, Entity, ManyToOne, OneToMany, OneToOne, RelationId } from 'typeorm';
-import { Author } from '../../author/entities/author.entity';
-import { Cart } from '../../cart/entities/cart.entity';
-import { UserAddress } from './userAddress.entity';
-import { UserMembership } from './userMembership.entity';
+import { Column, Entity, OneToMany } from 'typeorm';
 import { UserRole } from './userRole.entity';
 
 @Entity(ENUM_TABLE_NAMES.USERS, { orderBy: { createdAt: 'DESC' } })
@@ -45,32 +41,4 @@ export class User extends BaseEntity {
   @OneToMany(() => UserRole, (e) => e.user)
   @Type(() => UserRole)
   userRoles?: UserRole[];
-
-  @OneToOne(() => Author, (author) => author.user, {
-    nullable: true,
-  })
-  author?: Author;
-
-  @RelationId((user: User) => user.author)
-  @Column({ nullable: true })
-  authorId?: string;
-
-  @OneToOne(() => UserMembership, (membership) => membership.user, {
-    nullable: true,
-  })
-  membership?: UserMembership;
-
-  @RelationId((user: User) => user.membership)
-  @Column({ nullable: true })
-  membershipId?: string;
-
-  @ManyToOne(() => Cart, { onDelete: 'SET NULL' })
-  activeCart?: Cart;
-
-  @RelationId((e: User) => e.activeCart)
-  @Column({ nullable: true })
-  activeCartId?: string;
-
-  @OneToMany(() => UserAddress, (e) => e.user)
-  addresses?: UserAddress[];
 }

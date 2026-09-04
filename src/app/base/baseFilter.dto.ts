@@ -1,6 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBooleanString, IsNotEmpty, IsNumberString, IsOptional, IsString, isUUID } from 'class-validator';
+import {
+  IsBooleanString,
+  IsNotEmpty,
+  IsNumberString,
+  IsOptional,
+  IsString,
+  isUUID,
+} from 'class-validator';
 import { IsUUIDArray } from '../decorators';
 export enum SortOrder {
   ASC = 'ASC',
@@ -45,7 +52,7 @@ export class BaseFilterDTO {
 
   @ApiProperty({
     type: String,
-    description: new Date().toString(),
+    description: 'Format (YYYY-MM-DD): ' + new Date().toISOString().split('T')[0],
     default: '',
     required: false,
   })
@@ -55,7 +62,7 @@ export class BaseFilterDTO {
 
   @ApiProperty({
     type: String,
-    description: new Date().toString(),
+    description: 'Format (YYYY-MM-DD): ' + new Date().toISOString().split('T')[0],
     default: '',
     required: false,
   })
@@ -106,7 +113,6 @@ export class BaseFilterDTO {
   @IsUUIDArray()
   readonly initialLoadIds?: string[];
 }
-
 
 export class FilterBulkByIdsDTO {
   @ApiProperty({

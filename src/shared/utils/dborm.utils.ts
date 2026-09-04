@@ -1,12 +1,16 @@
+import { BadRequestException } from '@nestjs/common';
 import { BaseEntity, IMultipleSort } from '@src/app/base';
 import { IFindBaseOptions } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import {
+  Between,
   DataSource,
   FindManyOptions,
   FindOptionsWhere,
   ILike,
   In,
+  LessThanOrEqual,
+  MoreThanOrEqual,
   Not,
   QueryRunner,
   Raw,
@@ -83,6 +87,8 @@ export async function findAllByRepo<T extends BaseEntity>(
     sortBy?: string;
     sortOrder?: 'ASC' | 'DESC';
     sort?: IMultipleSort[];
+    startDate?: string;
+    endDate?: string;
   },
   options?: IFindBaseOptions<T>,
 ): Promise<SuccessResponse<T[]>> {
@@ -94,9 +100,58 @@ export async function findAllByRepo<T extends BaseEntity>(
     initialLoadIds,
     limit: take = 20,
     page = 1,
+    startDate,
+    endDate,
     ...queryOptions
   } = filters;
   const skip = (page - 1) * take;
+
+  // Date-range filtering. startDate/endDate come from BaseFilterDTO and are not
+  // entity columns, so strip them from the where clause and apply a real range
+  // on the entity's business date column (DATE_FILTER_COLUMN) when one is
+  // declared, otherwise fall back to createdAt.
+  if (startDate || endDate) {
+    let dateColumn = options?.DATE_FILTER_COLUMN;
+
+    if (!dateColumn) {
+      try {
+        const targetValue = repo.target?.valueOf();
+        if (
+          targetValue &&
+          typeof targetValue === 'object' &&
+          'DATE_FILTER_COLUMN' in targetValue
+        ) {
+          dateColumn = (targetValue as any).DATE_FILTER_COLUMN;
+        }
+      } catch (_e) {
+        dateColumn = undefined;
+      }
+    }
+
+    const column = dateColumn || 'createdAt';
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+
+    if (start && Number.isNaN(start.getTime())) {
+      throw new BadRequestException(`Invalid startDate: ${startDate}`);
+    }
+    if (end && Number.isNaN(end.getTime())) {
+      throw new BadRequestException(`Invalid endDate: ${endDate}`);
+    }
+
+    // For date-only values (YYYY-MM-DD) include the whole end day.
+    if (end && typeof endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      end.setHours(23, 59, 59, 999);
+    }
+
+    if (start && end) {
+      (queryOptions as any)[column] = Between(start, end);
+    } else if (start) {
+      (queryOptions as any)[column] = MoreThanOrEqual(start);
+    } else if (end) {
+      (queryOptions as any)[column] = LessThanOrEqual(end);
+    }
+  }
 
   // Handle initial load IDs
   let initialData: T[] = [];
@@ -126,6 +181,7 @@ export async function findAllByRepo<T extends BaseEntity>(
     where: queryOptions as FindOptionsWhere<T>,
   };
 
+<<<<<<< Updated upstream
   if (searchTerm && repo.target.valueOf().hasOwnProperty('SEARCH_TERMS')) {
     let SEARCH_TERMS = options.SEARCH_TERMS || (repo.target.valueOf() as any).SEARCH_TERMS || [];
 
@@ -133,6 +189,73 @@ export async function findAllByRepo<T extends BaseEntity>(
       SEARCH_TERMS = SEARCH_TERMS.filter(
         (term: string) => !Object.keys(queryOptions).includes(term),
       );
+=======
+  if (searchTerm) {
+    try {
+      let SEARCH_TERMS = options?.SEARCH_TERMS;
+      
+      if (!SEARCH_TERMS) {
+        // Try to get SEARCH_TERMS from the entity
+        try {
+          const targetValue = repo.target?.valueOf();
+          if (targetValue && typeof targetValue === 'object' && 'SEARCH_TERMS' in targetValue) {
+            SEARCH_TERMS = (targetValue as any).SEARCH_TERMS;
+          }
+        } catch (_e) {
+          // If accessing SEARCH_TERMS fails, just use empty array
+          SEARCH_TERMS = [];
+        }
+      }
+      
+      if (!SEARCH_TERMS) {
+        SEARCH_TERMS = [];
+      }
+      
+      if (SEARCH_TERMS.length > 0) {
+          if (Object.keys(queryOptions).length) {
+            SEARCH_TERMS = SEARCH_TERMS.filter(
+              (term: string) => !Object.keys(queryOptions).includes(term),
+            );
+          }
+
+          const where = [];
+          for (const term of SEARCH_TERMS) {
+            // Check if the search term is a relation
+            if (term?.includes('.')) {
+              const [relation, field] = term.split('.');
+              // Check if the relation is allowed
+              if (!relations.includes(relation)) {
+                continue;
+              }
+              where.push({
+                ...queryOptions,
+                [relation]: {
+                  [field]: ILike(`%${searchTerm}%`),
+                },
+              });
+            } else if (term?.includes(':')) {
+              const [field, property] = term.split(':');
+              // search on jsonb property
+              where.push({
+                ...queryOptions,
+                [field]: Raw((alias) => `${alias} ->> '${property}' ILIKE '%${searchTerm}%'`),
+              });
+            } else {
+              where.push({
+                ...queryOptions,
+                [term]: ILike(`%${searchTerm}%`),
+              });
+            }
+          }
+          
+          if (where.length > 0) {
+            opts.where = where as any;
+          }
+      }
+    } catch (error) {
+      // If SEARCH_TERMS access fails, continue without search filtering
+      console.warn('Failed to access SEARCH_TERMS:', error);
+>>>>>>> Stashed changes
     }
 
     const where = [];

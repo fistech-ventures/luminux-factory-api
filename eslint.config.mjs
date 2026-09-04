@@ -2,6 +2,9 @@ import tsEsLintPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import tsEslint from 'typescript-eslint';
+import { fileURLToPath } from 'node:url';
+
+const projectRootDir = fileURLToPath(new URL('.', import.meta.url));
 
 const baseRules = tsEslint.configs.recommended
   .map((config) => config.rules)
@@ -22,7 +25,7 @@ export default [
       parser: tsParser,
       parserOptions: {
         project: 'tsconfig.json',
-        tsconfigRootDir: '.',
+        tsconfigRootDir: projectRootDir,
       },
     },
     linterOptions: {
@@ -163,6 +166,16 @@ export default [
           ignoreRestSiblings: true,
         },
       ],
+    },
+  },
+  {
+    // HtmlHelper registers Handlebars block helpers as plain functions so
+    // Handlebars binds `this` to the current data context - required for
+    // options.fn/options.inverse to re-render block bodies against real data.
+    name: 'ts/handlebars-helper-context',
+    files: ['src/app/helpers/html.helper.ts'],
+    rules: {
+      '@typescript-eslint/no-invalid-this': 'off',
     },
   },
 ];

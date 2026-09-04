@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class ProductVariantOptionUpdateDTO {
   @ApiProperty({
@@ -14,29 +14,20 @@ export class ProductVariantOptionUpdateDTO {
   @ApiProperty({
     type: Number,
     required: false,
-    example: 50,
+    example: 500,
   })
   @IsOptional()
   @IsNumber()
-  readonly additionalSourcingPrice!: number;
+  readonly sellingPrice!: number;
 
   @ApiProperty({
     type: Number,
     required: false,
-    example: 50,
+    example: 10,
   })
   @IsOptional()
   @IsNumber()
-  readonly additionalMRP!: number;
-
-  @ApiProperty({
-    type: Number,
-    required: false,
-    example: 50,
-  })
-  @IsOptional()
-  @IsNumber()
-  readonly additionalDiscount!: number;
+  readonly stockQuantity!: number;
 
   @ApiProperty({
     type: String,
@@ -57,13 +48,13 @@ export class ProductVariantOptionUpdateDTO {
   readonly variantOptionId!: string;
 
   @ApiProperty({
-    type: Boolean,
+    type: Number,
     required: false,
-    example: true,
+    example: 1,
   })
   @IsOptional()
-  @IsBoolean()
-  readonly isActive!: boolean;
+  @IsNumber()
+  readonly position!: number;
 
   @IsOptional()
   readonly updatedBy?: any;

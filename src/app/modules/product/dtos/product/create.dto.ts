@@ -1,532 +1,92 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-
 import {
   IsArray,
-  IsBoolean,
-  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { ENUM_PRODUCT_CONDITION, ENUM_PRODUCT_SEGMENT, ENUM_PRODUCT_STATUS } from '../../const';
-import { IAuthUser } from '@src/app/interfaces';
 
-export class ProductGenreCreateDTO {
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
-  })
-  @IsUUID()
+export class ProductVariantOptionDTO {
+  @ApiProperty({ type: String, required: true, example: 'uuid' })
   @IsNotEmpty()
-  readonly genreId!: string;
-
-  @IsOptional()
-  readonly createdBy?: IAuthUser;
-}
-export class ProductCategoryCreateDTO {
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
-  })
   @IsUUID()
-  @IsNotEmpty()
-  readonly categoryId!: string;
-
-  @IsOptional()
-  readonly createdBy?: IAuthUser;
-}
-export class ProductVariantCreateDTO {
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: '7efe629c',
-  })
-  @IsString()
-  @IsOptional()
-  readonly sku!: string;
-
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
-  })
-  @IsUUID()
-  @IsNotEmpty()
   readonly variantId!: string;
 
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
-  })
-  @IsUUID()
+  @ApiProperty({ type: String, required: true, example: 'uuid' })
   @IsNotEmpty()
+  @IsUUID()
   readonly variantOptionId!: string;
 
-  @ApiProperty({
-    type: Number,
-    required: true,
-    example: 450,
-  })
-  @IsNotEmpty()
-  @IsNumber()
-  readonly additionalSourcingPrice!: number;
+  @ApiProperty({ type: String, required: false, example: 'SKU-001' })
+  @IsOptional()
+  @IsString()
+  readonly sku?: string;
 
-  @ApiProperty({
-    type: Number,
-    required: true,
-    example: 450,
-  })
-  @IsNotEmpty()
-  @IsNumber()
-  readonly additionalMRP!: number;
-
-  @ApiProperty({
-    type: Number,
-    required: true,
-    example: 450,
-  })
-  @IsNotEmpty()
-  @IsNumber()
-  readonly additionalDiscount!: number;
-
-  @ApiProperty({
-    type: Number,
-    required: true,
-    example: 450,
-  })
+  @ApiProperty({ type: Number, required: false, example: 450 })
   @IsOptional()
   @IsNumber()
-  readonly stockQuantity!: number;
+  readonly sellingPrice?: number;
 
-  @ApiProperty({
-    type: Number,
-    required: false,
-    example: 2,
-  })
+  @ApiProperty({ type: Number, required: false, example: 10 })
   @IsOptional()
-  readonly position!: number;
+  @IsNumber()
+  readonly stockQuantity?: number;
 
+  @ApiProperty({ type: Number, required: false, example: 1 })
   @IsOptional()
-  readonly createdBy?: any;
-}
-
-export class ProductTagCreateDTO {
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
-  })
-  @IsUUID()
-  @IsNotEmpty()
-  readonly tagId!: string;
-
-  @IsOptional()
-  readonly createdBy?: any;
-}
-export class ProductMediaCreateDTO {
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: '7efe629c-3e94-4fa7-a26d-7c5216e41d93',
-  })
-  @IsUUID()
-  @IsNotEmpty()
-  readonly galleryId!: string;
+  @IsNumber()
+  readonly position?: number;
 }
 
 export class ProductCreateDTO {
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: 'Treasure Island',
-  })
+  @ApiProperty({ type: String, required: true, example: 'Rice 25kg' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(255)
   readonly title!: string;
 
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: `The story is about Jim, a young boy who goes in search of treasure after finding a treasure map. Jim faces shipwreck, a pirate mutiny, and sword fights. Jim's tale is a rags-to-riches story of a young boy who overcomes the odds.`,
-  })
+  @ApiProperty({ type: String, required: false })
   @IsOptional()
   @IsString()
-  readonly subTitle!: string;
+  readonly description?: string;
 
-  @ApiProperty({
-    type: [String],
-    required: false,
-  })
+  @ApiProperty({ type: Number, required: false, example: 0 })
+  @IsOptional()
+  @IsNumber()
+  readonly sourcingPrice?: number;
+
+  @ApiProperty({ type: Number, required: false, example: 0 })
+  @IsOptional()
+  @IsNumber()
+  readonly sellingPrice?: number;
+
+  @ApiProperty({ type: String, required: false, example: 'https://.../image.jpg' })
+  @IsOptional()
+  @IsString()
+  readonly thumbnail?: string;
+
+  @ApiProperty({ type: String, required: true, example: 'PRD-1001' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(100)
+  readonly productCode!: string;
+
+  @ApiProperty({ type: Number, required: false, example: 20 })
+  @IsOptional()
+  @IsNumber()
+  readonly stock?: number;
+
+  @ApiProperty({ type: [ProductVariantOptionDTO], required: false })
   @IsOptional()
   @IsArray()
-  readonly alias!: string[];
-
-  @ApiProperty({
-    type: String,
-    required: true,
-    example: 'treasure-island',
-  })
-  @IsNotEmpty()
-  @IsString()
-  readonly slug!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: Object.values(ENUM_PRODUCT_SEGMENT).join(' / '),
-  })
-  @IsOptional()
-  @IsString()
-  readonly segment!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: Object.values(ENUM_PRODUCT_CONDITION).join(' / '),
-  })
-  @IsOptional()
-  @IsString()
-  readonly condition!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: `The story is about Jim, a young boy who goes in search of treasure after finding a treasure map. Jim faces shipwreck, a pirate mutiny, and sword fights. Jim's tale is a rags-to-riches story of a young boy who overcomes the odds.`,
-  })
-  @IsOptional()
-  @IsString()
-  readonly flap!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: `The story is about Jim, a young boy who goes in search of treasure after finding a treasure map. Jim faces shipwreck, a pirate mutiny, and sword fights. Jim's tale is a rags-to-riches story of a young boy who overcomes the odds.`,
-  })
-  @IsOptional()
-  @IsString()
-  readonly description!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: `Short description of the product (richtext from frontend).`,
-  })
-  @IsOptional()
-  @IsString()
-  readonly shortDescription!: string;
-
-  @ApiProperty({
-    type: Object,
-    required: false,
-    example: {
-      isbn: 'swjdw',
-      page: 300,
-      flap: `The story is about Jim, a young boy who goes in search of treasure after finding a treasure map. Jim faces shipwreck, a pirate mutiny, and sword fights. Jim's tale is a rags-to-riches story of a young boy who overcomes the odds.`,
-    },
-  })
-  @IsOptional()
-  readonly specifications!: any;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'fibonaccibooks.com/thumb-image.jpg',
-  })
-  @IsOptional()
-  @IsString()
-  readonly thumb!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'fibonaccibooks.com/preview.pdf',
-  })
-  @IsOptional()
-  @IsString()
-  readonly previewPdf!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'fibonaccibooks.com/preview.pdf',
-  })
-  @IsOptional()
-  @IsString()
-  readonly videoUrl!: string;
-
-  @ApiProperty({
-    type: Number,
-    required: true,
-    example: 450,
-  })
-  @IsNotEmpty()
-  @IsNumber()
-  readonly sourcingPrice!: number;
-
-  @ApiProperty({
-    type: Number,
-    required: true,
-    example: 950,
-  })
-  @IsNotEmpty()
-  @IsNumber()
-  readonly mrp!: number;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'flat/percentage',
-  })
-  @IsOptional()
-  @IsString()
-  discountType!: 'flat' | 'percentage';
-
-  @ApiProperty({
-    type: Number,
-    required: false,
-    example: 250,
-  })
-  @IsOptional()
-  readonly discountAmount!: number;
-
-  @ApiProperty({
-    type: Number,
-    required: false,
-    example: 250,
-  })
-  @IsOptional()
-  readonly pageCount!: number;
-
-  @ApiProperty({
-    type: Number,
-    required: false,
-    example: 250,
-  })
-  @IsOptional()
-  readonly stockQuantity!: number;
-
-  @ApiProperty({
-    type: Number,
-    required: false,
-    example: 0,
-  })
-  @IsOptional()
-  @IsNumber()
-  readonly position!: number;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'Bengali',
-  })
-  @IsOptional()
-  @IsString()
-  readonly language!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'Japaneese',
-  })
-  @IsOptional()
-  @IsString()
-  readonly origin!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: Object.values(ENUM_PRODUCT_STATUS).join(' / '),
-  })
-  @IsOptional()
-  @IsString()
-  @IsEnum(ENUM_PRODUCT_STATUS)
-  readonly status!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'author uuid',
-  })
-  @IsOptional()
-  @IsString()
-  readonly authorId!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'author who translated uuid',
-  })
-  @IsOptional()
-  @IsString()
-  readonly translatorId!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'publication uuid',
-  })
-  @IsOptional()
-  @IsString()
-  readonly publicationId!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'category uuid',
-  })
-  @IsOptional()
-  @IsString()
-  readonly categoryId!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'subcategory uuid',
-  })
-  @IsOptional()
-  @IsString()
-  readonly subcategoryId!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'source shop uuid',
-  })
-  @IsOptional()
-  @IsString()
-  readonly sourceShopId!: string;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: 'brand uuid',
-  })
-  @IsOptional()
-  @IsString()
-  readonly brandId!: string;
-
-  @ApiProperty({
-    type: Boolean,
-    required: false,
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  readonly isActive!: boolean;
-
-  @ApiProperty({
-    type: Boolean,
-    required: true,
-    example: true,
-  })
-  @IsNotEmpty()
-  @IsBoolean()
-  readonly hasVariant!: boolean;
-
-  @ApiProperty({
-    type: Boolean,
-    required: false,
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  readonly isNewArrived!: boolean;
-
-  @ApiProperty({
-    type: Boolean,
-    required: false,
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  readonly isBestSeller!: boolean;
-
-  @ApiProperty({
-    type: Boolean,
-    required: false,
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  readonly isFeatured!: boolean;
-
-  @ApiProperty({
-    type: Boolean,
-    required: false,
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  readonly isFreeDelivery!: boolean;
-
-  @ApiProperty({
-    type: Boolean,
-    required: false,
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  readonly isForPreOrder!: boolean;
-
-  @ApiProperty({
-    type: String,
-    required: false,
-    example: '7c5216e41d93',
-  })
-  @IsOptional()
-  @IsString()
-  sku!: string;
-
-  @ApiProperty({
-    type: [ProductVariantCreateDTO],
-    required: false,
-  })
-  @ValidateNested()
-  @Type(() => ProductVariantCreateDTO)
-  @IsOptional()
-  readonly variants!: ProductVariantCreateDTO[];
-
-  @ApiProperty({
-    type: [ProductGenreCreateDTO],
-    required: false,
-  })
-  @ValidateNested()
-  @Type(() => ProductGenreCreateDTO)
-  @IsOptional()
-  readonly genres!: ProductGenreCreateDTO[];
-
-  @ApiProperty({
-    type: [ProductCategoryCreateDTO],
-    required: false,
-  })
-  @ValidateNested()
-  @Type(() => ProductCategoryCreateDTO)
-  @IsOptional()
-  readonly categories!: ProductCategoryCreateDTO[];
-
-  @ApiProperty({
-    type: [String],
-    required: false,
-  })
-  @IsOptional()
-  @IsArray()
-  readonly tags!: string[];
-
-  @ApiProperty({
-    type: [ProductMediaCreateDTO],
-    required: false,
-  })
-  @ValidateNested()
-  @Type(() => ProductMediaCreateDTO)
-  @IsOptional()
-  readonly medias!: ProductMediaCreateDTO[];
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantOptionDTO)
+  readonly variants?: ProductVariantOptionDTO[];
 
   @IsOptional()
   readonly createdBy?: any;

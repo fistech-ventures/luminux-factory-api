@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 import {
-  IsBoolean,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -12,39 +11,39 @@ import {
 export class ProductVariantOptionCreateDTO {
   @ApiProperty({
     type: String,
-    required: true,
+    required: false,
     example: 'er9r8e4ew',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   readonly sku!: string;
 
   @ApiProperty({
     type: Number,
-    required: true,
-    example: 50,
+    required: false,
+    example: 500,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
-  readonly additionalSourcingPrice!: number;
+  readonly sellingPrice!: number;
 
   @ApiProperty({
     type: Number,
-    required: true,
-    example: 50,
+    required: false,
+    example: 10,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
-  readonly additionalMRP!: number;
+  readonly stockQuantity!: number;
 
   @ApiProperty({
-    type: Number,
+    type: String,
     required: true,
-    example: 50,
+    example: 'uuid',
   })
   @IsNotEmpty()
-  @IsNumber()
-  readonly additionalDiscount!: number;
+  @IsUUID()
+  readonly productId!: string;
 
   @ApiProperty({
     type: String,
@@ -65,13 +64,13 @@ export class ProductVariantOptionCreateDTO {
   readonly variantOptionId!: string;
 
   @ApiProperty({
-    type: Boolean,
+    type: Number,
     required: false,
-    example: true,
+    example: 1,
   })
   @IsOptional()
-  @IsBoolean()
-  readonly isActive!: boolean;
+  @IsNumber()
+  readonly position!: number;
 
   @IsOptional()
   readonly createdBy?: any;

@@ -2,8 +2,6 @@ import { HttpService } from '@nestjs/axios';
 import {
   BadRequestException,
   ConflictException,
-  forwardRef,
-  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -23,7 +21,7 @@ import { firstValueFrom } from 'rxjs';
 import { DataSource } from 'typeorm';
 import { Role } from '../../acl/entities/role.entity';
 import { RoleService } from '../../acl/services/role.service';
-import { SupabaseFileUploadService } from '../../gallery/services/supabaseFileUpload.service';
+import { R2FileUploadService } from '../../gallery/services/r2FileUpload.service';
 import { GlobalConfigService } from '../../globalConfig/services/globalConfig.service';
 import { EmailService } from '../../notification/services/email.service';
 import { SmsService } from '../../notification/services/sms.service';
@@ -45,8 +43,6 @@ import { JWTHelper } from './../../../helpers/jwt.helper';
 import { UserService } from './../../user/services/user.service';
 import { ChangePasswordDTO } from './../dtos/changePassword.dto';
 import { QuickRegistrationDTO } from './../dtos/quickRegistration.dto';
-import { CartService } from './../../cart/services/cart.service';
-import { UserWishlistService } from './../../user/services/userWishlist.service';
 
 @Injectable()
 export class AuthService {
@@ -62,12 +58,8 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly smsService: SmsService,
     private readonly globalConfigService: GlobalConfigService,
-    private readonly fileUploadService: SupabaseFileUploadService,
+    private readonly fileUploadService: R2FileUploadService,
     private readonly userProfileService: UserProfileService,
-    @Inject(forwardRef(() => CartService))
-    private readonly cartService: CartService,
-    @Inject(forwardRef(() => UserWishlistService))
-    private readonly userWishlistService: UserWishlistService,
   ) { }
 
   async loginResponse(
@@ -327,40 +319,6 @@ export class AuthService {
       }
     }
 
-    // Handle guest cart merge if provided
-    if (payload.guestCartItems && payload.guestCartItems.length > 0) {
-      try {
-        const guestCartMergePayload = { guestCartItems: payload.guestCartItems };
-        const authUser = {
-          id: createdUser.id,
-          email: createdUser.email,
-          fullName: createdUser.fullName,
-          phoneNumber: createdUser.phoneNumber
-        };
-        await this.cartService.mergeGuestCartToUserCart(guestCartMergePayload, authUser);
-      } catch (error) {
-        console.error('Cart merge failed during registration:', error);
-        // Continue with registration even if cart merge fails
-      }
-    }
-
-    // Handle guest wishlist merge if provided
-    if (payload.guestWishlistItems && payload.guestWishlistItems.length > 0) {
-      try {
-        const guestWishlistMergePayload = { guestWishlistItems: payload.guestWishlistItems };
-        const authUser = {
-          id: createdUser.id,
-          email: createdUser.email,
-          fullName: createdUser.fullName,
-          phoneNumber: createdUser.phoneNumber
-        };
-        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
-      } catch (error) {
-        console.error('Wishlist merge failed during registration:', error);
-        // Continue with registration even if wishlist merge fails
-      }
-    }
-
     const response = await this.otpSentForVerification({
       verificationType: ENUM_VERIFICATION_TYPES.SIGN_UP,
       identifier: payload?.identifier,
@@ -407,6 +365,7 @@ export class AuthService {
       });
     }
 
+<<<<<<< Updated upstream
     // Handle guest cart merge if provided
     if (payload.guestCartItems && payload.guestCartItems.length > 0) {
       try {
@@ -431,6 +390,8 @@ export class AuthService {
       }
     }
 
+=======
+>>>>>>> Stashed changes
     return this.loginResponse(user, {
       remember: payload.remember,
       rememberDays: payload.rememberDays,
@@ -498,8 +459,6 @@ export class AuthService {
       webRedirectUrl: string;
       provider: string;
       role?: string;
-      guestCartItems?: any[];
-      guestWishlistItems?: any[];
     };
     const isExist = await this.userService.findOne({
       where: { email: userData.email },
@@ -559,40 +518,6 @@ export class AuthService {
       }
     }
 
-    // Handle guest cart merge if provided
-    if (additionalData.guestCartItems && additionalData.guestCartItems.length > 0) {
-      try {
-        const guestCartMergePayload = { guestCartItems: additionalData.guestCartItems };
-        const authUser = {
-          id: newCreatedUser.id,
-          email: newCreatedUser.email,
-          fullName: newCreatedUser.fullName,
-          phoneNumber: newCreatedUser.phoneNumber
-        };
-        await this.cartService.mergeGuestCartToUserCart(guestCartMergePayload, authUser);
-      } catch (error) {
-        console.error('Cart merge failed during Google login:', error);
-        // Continue with login even if cart merge fails
-      }
-    }
-
-    // Handle guest wishlist merge if provided
-    if (additionalData.guestWishlistItems && additionalData.guestWishlistItems.length > 0) {
-      try {
-        const guestWishlistMergePayload = { guestWishlistItems: additionalData.guestWishlistItems };
-        const authUser = {
-          id: newCreatedUser.id,
-          email: newCreatedUser.email,
-          fullName: newCreatedUser.fullName,
-          phoneNumber: newCreatedUser.phoneNumber
-        };
-        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
-      } catch (error) {
-        console.error('Wishlist merge failed during Google login:', error);
-        // Continue with login even if wishlist merge fails
-      }
-    }
-
     // Generate backend JWT token instead of using Google access token
     const loginResponse = await this.loginResponse(newCreatedUser);
     const callBackUrl = `${additionalData.webRedirectUrl}?token=${loginResponse.data.accessToken}&provider=${additionalData.provider}`;
@@ -624,8 +549,6 @@ export class AuthService {
       webRedirectUrl: string;
       provider: string;
       role?: string;
-      guestCartItems?: any[];
-      guestWishlistItems?: any[];
     };
     if (!userData?.email) {
       throw new BadRequestException(
@@ -691,40 +614,6 @@ export class AuthService {
             roleId: role.id,
           });
         }
-      }
-    }
-
-    // Handle guest cart merge if provided
-    if (additionalData.guestCartItems && additionalData.guestCartItems.length > 0) {
-      try {
-        const guestCartMergePayload = { guestCartItems: additionalData.guestCartItems };
-        const authUser = {
-          id: newCreatedUser.id,
-          email: newCreatedUser.email,
-          fullName: newCreatedUser.fullName,
-          phoneNumber: newCreatedUser.phoneNumber
-        };
-        await this.cartService.mergeGuestCartToUserCart(guestCartMergePayload, authUser);
-      } catch (error) {
-        console.error('Cart merge failed during Facebook login:', error);
-        // Continue with login even if cart merge fails
-      }
-    }
-
-    // Handle guest wishlist merge if provided
-    if (additionalData.guestWishlistItems && additionalData.guestWishlistItems.length > 0) {
-      try {
-        const guestWishlistMergePayload = { guestWishlistItems: additionalData.guestWishlistItems };
-        const authUser = {
-          id: newCreatedUser.id,
-          email: newCreatedUser.email,
-          fullName: newCreatedUser.fullName,
-          phoneNumber: newCreatedUser.phoneNumber
-        };
-        await this.userWishlistService.mergeGuestWishlistToUserWishlist(guestWishlistMergePayload, authUser);
-      } catch (error) {
-        console.error('Wishlist merge failed during Facebook login:', error);
-        // Continue with login even if wishlist merge fails
       }
     }
 
