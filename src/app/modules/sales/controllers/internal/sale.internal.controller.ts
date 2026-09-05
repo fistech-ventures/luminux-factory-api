@@ -32,7 +32,7 @@ export class SaleInternalController {
 
   @Get()
   async findAll(@Query() query: FilterSaleDTO): Promise<any> {
-    return await this.saleService.findAllBase(query);
+    return await this.saleService.findAllBase(query, { relations: this.saleService.RELATIONS });
   }
 
   /** Returns the sale's invoice as a PDF, generated on demand from live data. */

@@ -6,7 +6,7 @@ import {
   rollbackTransaction,
   startTransaction,
 } from '@src/shared/utils/dborm.utils';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, FindOptionsRelations, Repository } from 'typeorm';
 import { CreatePurchaseDTO } from '../dtos/create.dto';
 import { UpdatePurchaseDTO } from '../dtos/update.dto';
 import { PurchaseItemDTO } from '../dtos/purchase-item.dto';
@@ -30,6 +30,10 @@ export class PurchaseService extends BaseService<Purchase> {
   ) {
     super(_repo);
   }
+
+  public readonly RELATIONS: FindOptionsRelations<Purchase> = {
+    supplier: true,
+  };
 
   async createPurchase(payload: CreatePurchaseDTO): Promise<Purchase> {
     const queryRunner = await startTransaction(this.dataSource);
@@ -63,9 +67,7 @@ export class PurchaseService extends BaseService<Purchase> {
               where: { id: item.variantId, productId },
             });
             if (!variant) {
-              throw new BadRequestException(
-                'Variant not found for the given product',
-              );
+              throw new BadRequestException('Variant not found for the given product');
             }
             await queryRunner.manager.update(
               ProductVariantOption,

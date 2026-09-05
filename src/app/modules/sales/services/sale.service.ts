@@ -11,6 +11,7 @@ import {
   Between,
   DataSource,
   EntityManager,
+  FindOptionsRelations,
   FindOptionsWhere,
   LessThanOrEqual,
   MoreThanOrEqual,
@@ -42,6 +43,14 @@ export class SaleService extends BaseService<Sale> {
   ) {
     super(_repo);
   }
+
+  public readonly RELATIONS: FindOptionsRelations<Sale> = { 
+    customer: true,
+    items: {
+      product: true,
+      variant: true,
+    },
+  };
 
   async createSale(payload: CreateSaleDTO): Promise<Sale> {
     const queryRunner = await startTransaction(this.dataSource);

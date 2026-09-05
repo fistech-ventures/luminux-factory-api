@@ -31,12 +31,12 @@ export class PurchaseInternalController {
 
   @Get()
   async findAll(@Query() query: FilterPurchaseDTO): Promise<any> {
-    return await this.purchaseService.findAllBase(query);
+    return await this.purchaseService.findAllBase(query, {relations: this.purchaseService.RELATIONS});
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<Purchase> {
-    return await this.purchaseService.findByIdBase(id);
+    return await this.purchaseService.findByIdBase(id, {relations: this.purchaseService.RELATIONS});
   }
 
   @Patch(':id')
