@@ -48,12 +48,15 @@ export class AddAccountsProfitAndCustomerType1788900000000 implements MigrationI
     `);
 
     // Databases created from an earlier consolidated migration are also
-    // missing the paymentMethod column on purchases / expenses.
+    // missing the paymentMethod column on purchases / expenses / sales.
     await queryRunner.query(
       `ALTER TABLE "purchases" ADD COLUMN IF NOT EXISTS "paymentMethod" varchar(100) NOT NULL DEFAULT 'cash';`,
     );
     await queryRunner.query(
       `ALTER TABLE "expenses" ADD COLUMN IF NOT EXISTS "paymentMethod" varchar(100) NOT NULL DEFAULT 'cash';`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "sales" ADD COLUMN IF NOT EXISTS "paymentMethod" varchar(100) NOT NULL DEFAULT 'cash';`,
     );
 
     await queryRunner.query(
@@ -80,6 +83,7 @@ export class AddAccountsProfitAndCustomerType1788900000000 implements MigrationI
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`ALTER TABLE "sale_items" DROP COLUMN IF EXISTS "sourcingPrice";`);
+    await queryRunner.query(`ALTER TABLE "sales" DROP COLUMN IF EXISTS "paymentMethod";`);
     await queryRunner.query(`ALTER TABLE "expenses" DROP COLUMN IF EXISTS "paymentMethod";`);
     await queryRunner.query(`ALTER TABLE "purchases" DROP COLUMN IF EXISTS "paymentMethod";`);
     await queryRunner.query(`ALTER TABLE "products" DROP COLUMN IF EXISTS "b2cSoldQuantity";`);
