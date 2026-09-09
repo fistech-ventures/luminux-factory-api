@@ -13,10 +13,10 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class AddInvoiceToSales1788800000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`CREATE SEQUENCE IF NOT EXISTS "sales_invoice_seq"`);
-    await queryRunner.query(`ALTER TABLE "sales" ADD "invoiceNo" varchar(50)`);
-    await queryRunner.query(`ALTER TABLE "sales" ADD "invoiceUrl" text`);
+    await queryRunner.query(`ALTER TABLE "sales" ADD COLUMN IF NOT EXISTS "invoiceNo" varchar(50)`);
+    await queryRunner.query(`ALTER TABLE "sales" ADD COLUMN IF NOT EXISTS "invoiceUrl" text`);
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_sales_invoiceNo" ON "sales" ("invoiceNo")`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_sales_invoiceNo" ON "sales" ("invoiceNo")`,
     );
   }
 

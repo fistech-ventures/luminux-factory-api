@@ -7,14 +7,16 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  */
 export class AddVariantIdToPurchaseItems1788700000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "purchase_items" ADD "variantId" uuid`);
+    await queryRunner.query(`ALTER TABLE "purchase_items" ADD COLUMN IF NOT EXISTS "variantId" uuid`);
     await queryRunner.query(`
-      ALTER TABLE "purchase_items"
-        ADD CONSTRAINT "FK_purchase_items_variantId"
-        FOREIGN KEY ("variantId") REFERENCES "product_variant_options" ("id") ON DELETE SET NULL
+      DO $$ BEGIN
+        ALTER TABLE "purchase_items"
+          ADD CONSTRAINT "FK_purchase_items_variantId"
+          FOREIGN KEY ("variantId") REFERENCES "product_variant_options" ("id") ON DELETE SET NULL;
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     `);
     await queryRunner.query(
-      `CREATE INDEX "IDX_purchase_items_variantId" ON "purchase_items" ("variantId")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_purchase_items_variantId" ON "purchase_items" ("variantId")`,
     );
   }
 
