@@ -1,5 +1,5 @@
 import { BaseEntity } from '@src/app/base';
-import { ENUM_COLUMN_TYPES, ENUM_TABLE_NAMES } from '@src/shared';
+import { ENUM_COLUMN_TYPES, ENUM_CUSTOMER_TYPES, ENUM_TABLE_NAMES } from '@src/shared';
 import { Column, Entity, OneToMany } from 'typeorm';
 import { Sale } from '../../sales/entities/sale.entity';
 
@@ -9,6 +9,9 @@ export class Customer extends BaseEntity {
 
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 255, nullable: false })
   name?: string;
+
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 10, nullable: false, default: ENUM_CUSTOMER_TYPES.B2C })
+  customerType?: ENUM_CUSTOMER_TYPES;
 
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 20, nullable: false })
   contactNumber?: string;

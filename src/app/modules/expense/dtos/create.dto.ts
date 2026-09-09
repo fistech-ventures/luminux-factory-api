@@ -1,6 +1,7 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { ENUM_PAYMENT_METHODS } from '@src/shared';
 
 export class CreateExpenseDTO {
   @ApiProperty({
@@ -30,6 +31,16 @@ export class CreateExpenseDTO {
   @IsNotEmpty()
   @IsNumber()
   amountSpent: number;
+
+  @ApiProperty({
+    type: String,
+    required: true,
+    enum: ENUM_PAYMENT_METHODS,
+    example: ENUM_PAYMENT_METHODS.CASH,
+  })
+  @IsNotEmpty()
+  @IsEnum(ENUM_PAYMENT_METHODS)
+  paymentMethod: ENUM_PAYMENT_METHODS;
 
   @ApiProperty({
     type: String,

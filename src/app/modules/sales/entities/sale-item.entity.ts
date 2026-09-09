@@ -37,6 +37,11 @@ export class SaleItem extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })
   sellingPrice?: number;
 
+  // Unit cost (product sourcing price) at the time of sale - a snapshot so
+  // historical profit stays correct even if the sourcing price changes later.
+  @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
+  sourcingPrice?: number;
+
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })
   totalAmount?: number;
 }

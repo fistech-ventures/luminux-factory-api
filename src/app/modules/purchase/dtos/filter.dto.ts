@@ -1,10 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BaseFilterDTO } from '@src/app/base/baseFilter.dto';
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { ENUM_PAYMENT_METHODS } from '@src/shared';
 
 export class FilterPurchaseDTO extends BaseFilterDTO {
   @ApiProperty({ type: String, required: false, example: 'supplier uuid' })
   @IsOptional()
   @IsString()
   supplierId?: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    enum: ENUM_PAYMENT_METHODS,
+    example: ENUM_PAYMENT_METHODS.CASH,
+  })
+  @IsOptional()
+  @IsEnum(ENUM_PAYMENT_METHODS)
+  paymentMethod?: ENUM_PAYMENT_METHODS;
 }

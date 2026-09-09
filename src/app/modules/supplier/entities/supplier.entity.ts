@@ -5,12 +5,17 @@ import { Purchase } from '../../purchase/entities/purchase.entity';
 
 @Entity(ENUM_TABLE_NAMES.SUPPLIERS, { orderBy: { createdAt: 'DESC' } })
 export class Supplier extends BaseEntity {
-  public static readonly SEARCH_TERMS: string[] = ['companyName', 'contactPerson', 'contactNumber', 'email'];
+  public static readonly SEARCH_TERMS: string[] = [
+    'companyName',
+    'contactPerson',
+    'contactNumber',
+    'email',
+  ];
 
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 255, nullable: false })
   companyName?: string;
 
-  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 255, nullable: false })
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 255, nullable: true })
   contactPerson?: string;
 
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 20, nullable: false })

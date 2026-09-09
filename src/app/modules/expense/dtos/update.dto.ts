@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
+import { ENUM_PAYMENT_METHODS } from '@src/shared';
 
 export class UpdateExpenseDTO {
   @ApiProperty({
@@ -25,6 +26,16 @@ export class UpdateExpenseDTO {
   })
   @IsOptional()
   amountSpent?: number;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    enum: ENUM_PAYMENT_METHODS,
+    example: ENUM_PAYMENT_METHODS.CASH,
+  })
+  @IsOptional()
+  @IsEnum(ENUM_PAYMENT_METHODS)
+  paymentMethod?: ENUM_PAYMENT_METHODS;
 
   @ApiProperty({
     type: String,

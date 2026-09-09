@@ -3,6 +3,7 @@ import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-vali
 
 export class CreateSupplierDTO {
   @ApiProperty({
+    required: true,
     name: 'companyName',
     example: 'ABC Company',
   })
@@ -12,15 +13,17 @@ export class CreateSupplierDTO {
   companyName: string;
 
   @ApiProperty({
+    required: false,
     name: 'contactPerson',
     example: 'John Doe',
   })
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  contactPerson: string;
+  contactPerson?: string;
 
   @ApiProperty({
+    required: true,
     name: 'contactNumber',
     example: '1234567890',
   })
@@ -30,6 +33,7 @@ export class CreateSupplierDTO {
   contactNumber: string;
 
   @ApiProperty({
+    required: false,
     name: 'email',
     example: 'john.doe@example.com',
   })
@@ -39,13 +43,13 @@ export class CreateSupplierDTO {
   email?: string;
 
   @ApiProperty({
+    required: false,
     name: 'address',
     example: '123 Main St',
   })
   @IsOptional()
   @IsString()
-  address: string;
-
+  address?: string;
 
   @IsOptional()
   readonly createdBy: string;

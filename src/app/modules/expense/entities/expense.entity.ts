@@ -1,5 +1,5 @@
 import { BaseEntity } from '@src/app/base';
-import { ENUM_COLUMN_TYPES, ENUM_TABLE_NAMES } from '@src/shared';
+import { ENUM_COLUMN_TYPES, ENUM_PAYMENT_METHODS, ENUM_TABLE_NAMES } from '@src/shared';
 import { Column, Entity } from 'typeorm';
 
 @Entity(ENUM_TABLE_NAMES.EXPENSES, { orderBy: { createdAt: 'DESC' } })
@@ -15,6 +15,9 @@ export class Expense extends BaseEntity {
 
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })
   amountSpent?: number;
+
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 100, nullable: false })
+  paymentMethod?: ENUM_PAYMENT_METHODS;
 
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 255, nullable: false })
   spentBy?: string;

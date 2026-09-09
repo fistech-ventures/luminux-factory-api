@@ -1,5 +1,5 @@
 import { BaseEntity } from '@src/app/base';
-import { ENUM_COLUMN_TYPES, ENUM_TABLE_NAMES } from '@src/shared';
+import { ENUM_COLUMN_TYPES, ENUM_PAYMENT_METHODS, ENUM_TABLE_NAMES } from '@src/shared';
 import { Column, Entity, Index, ManyToOne, OneToMany, RelationId } from 'typeorm';
 import { Customer } from '../../customer/entities/customer.entity';
 import { User } from '../../user/entities/user.entity';
@@ -42,7 +42,7 @@ export class Sale extends BaseEntity {
   paidAmount?: number;
 
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 100, nullable: false })
-  paymentMethod?: string;
+  paymentMethod?: ENUM_PAYMENT_METHODS;
 
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
   dueAmount?: number;

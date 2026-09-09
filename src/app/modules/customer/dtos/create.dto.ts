@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ENUM_CUSTOMER_TYPES } from '@src/shared';
 
 export class CreateCustomerDTO {
   @ApiProperty({
@@ -10,6 +11,17 @@ export class CreateCustomerDTO {
   @IsNotEmpty()
   @IsString()
   name: string;
+
+  @ApiProperty({
+    type: String,
+    required: true,
+    enum: ENUM_CUSTOMER_TYPES,
+    example: ENUM_CUSTOMER_TYPES.B2C,
+    description: 'B2B => business customer, B2C => retail customer',
+  })
+  @IsNotEmpty()
+  @IsEnum(ENUM_CUSTOMER_TYPES)
+  customerType: ENUM_CUSTOMER_TYPES;
 
   @ApiProperty({
     type: String,

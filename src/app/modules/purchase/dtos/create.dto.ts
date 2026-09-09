@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { IsArray, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { ENUM_PAYMENT_METHODS } from '@src/shared';
 import { PurchaseItemDTO } from './purchase-item.dto';
 
 export class CreatePurchaseDTO {
@@ -31,6 +32,16 @@ export class CreatePurchaseDTO {
   @IsNotEmpty()
   @IsNumber()
   paidAmount: number;
+
+  @ApiProperty({
+    type: String,
+    required: true,
+    enum: ENUM_PAYMENT_METHODS,
+    example: ENUM_PAYMENT_METHODS.CASH,
+  })
+  @IsNotEmpty()
+  @IsEnum(ENUM_PAYMENT_METHODS)
+  paymentMethod: ENUM_PAYMENT_METHODS;
 
   @ApiProperty({ type: String, required: true, example: 'user uuid' })
   @IsNotEmpty()

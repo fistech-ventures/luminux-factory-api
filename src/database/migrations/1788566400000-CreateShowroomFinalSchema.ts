@@ -178,6 +178,10 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
         "productCode" varchar(100) NOT NULL UNIQUE,
         "stock" integer NOT NULL DEFAULT 0,
         "saleQuantity" integer NOT NULL DEFAULT 0,
+        "averageB2BSalesPrice" double precision NOT NULL DEFAULT 0,
+        "averageB2CSalesPrice" double precision NOT NULL DEFAULT 0,
+        "b2bSoldQuantity" integer NOT NULL DEFAULT 0,
+        "b2cSoldQuantity" integer NOT NULL DEFAULT 0,
         PRIMARY KEY ("id")
       );
     `);
@@ -209,6 +213,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       CREATE TABLE "customers" (
         ${BASE_COLUMNS}
         "name" varchar(255) NOT NULL,
+        "customerType" varchar(10) NOT NULL DEFAULT 'B2C',
         "contactNumber" varchar(20) NOT NULL,
         "email" varchar(150),
         "address" text,
@@ -240,6 +245,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
         "totalQuantity" integer NOT NULL DEFAULT 0,
         "totalPurchaseAmount" double precision NOT NULL DEFAULT 0,
         "paidAmount" double precision NOT NULL DEFAULT 0,
+        "paymentMethod" varchar(100) NOT NULL,
         "dueAmount" double precision NOT NULL DEFAULT 0,
         "purchasedById" uuid NOT NULL,
         PRIMARY KEY ("id"),
@@ -297,6 +303,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
         "variantId" uuid,
         "quantity" integer NOT NULL,
         "sellingPrice" double precision NOT NULL,
+        "sourcingPrice" double precision NOT NULL DEFAULT 0,
         "totalAmount" double precision NOT NULL,
         PRIMARY KEY ("id"),
         CONSTRAINT "FK_sale_items_saleId"
@@ -331,7 +338,22 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
         "date" date NOT NULL,
         "purpose" varchar(255) NOT NULL,
         "amountSpent" double precision NOT NULL,
+        "paymentMethod" varchar(100) NOT NULL,
         "spentBy" varchar(255) NOT NULL,
+        PRIMARY KEY ("id")
+      );
+    `);
+    await queryRunner.query(`
+      CREATE TABLE "payments" (
+        ${BASE_COLUMNS}
+        "paymentDate" date NOT NULL,
+        "entityType" varchar(50) NOT NULL,
+        "entityId" varchar(255) NOT NULL,
+        "amount" double precision NOT NULL,
+        "paymentMethod" varchar(100) NOT NULL,
+        "referenceId" varchar(255),
+        "referenceType" varchar(50),
+        "note" text,
         PRIMARY KEY ("id")
       );
     `);
@@ -449,6 +471,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       'gallery',
       'expenses',
       'ledgers',
+      'payments',
       'sale_items',
       'sales',
       'purchase_items',

@@ -4,6 +4,25 @@ export enum ENUM_PAYMENT_STATUS {
   PARTIALLY_PAID = 'PARTIALLY_PAID',
 }
 
+export enum ENUM_PAYMENT_METHODS {
+  CASH = 'cash',
+  BKASH = 'bKash',
+  NAGAD = 'nagad',
+  ROCKET = 'rocket',
+  UPAY = 'upay',
+  BANK = 'bank',
+}
+
+export enum ENUM_CUSTOMER_TYPES {
+  B2B = 'B2B',
+  B2C = 'B2C',
+}
+
+export enum ENUM_TRANSACTION_TYPES {
+  CASH_IN = 'cashIn',
+  CASH_OUT = 'cashOut',
+}
+
 export enum ENUM_GENDER {
   MALE = 'male',
   FEMALE = 'female',

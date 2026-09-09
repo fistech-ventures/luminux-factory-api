@@ -33,6 +33,21 @@ export class Product extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
   saleQuantity?: number;
 
+  // Weighted average of the per-unit selling price across B2B / B2C sales.
+  // Auto-calculated by the sales module on every sale; not user editable.
+  @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
+  averageB2BSalesPrice?: number;
+
+  @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
+  averageB2CSalesPrice?: number;
+
+  // Quantity sold per customer type - used to keep the averages weighted.
+  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
+  b2bSoldQuantity?: number;
+
+  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
+  b2cSoldQuantity?: number;
+
   @OneToMany(() => ProductVariantOption, (variant) => variant.product, { cascade: true })
   variants?: ProductVariantOption[];
 }

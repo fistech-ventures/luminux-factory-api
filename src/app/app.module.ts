@@ -18,6 +18,11 @@ import { ExpenseModule } from './modules/expense/expense.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
+import { ProfitModule } from './modules/profit/profit.module';
+import { LossModule } from './modules/loss/loss.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { UniqueValidatorPipe } from './pipes/uniqueValidator.pipe';
 
 const MODULES = [
@@ -35,7 +40,12 @@ const MODULES = [
   ExpenseModule,
   PurchaseModule,
   SalesModule,
-  LedgerModule
+  LedgerModule,
+  PaymentsModule,
+  AccountsModule,
+  ProfitModule,
+  LossModule,
+  DashboardModule,
 ];
 const PIPES = [UniqueValidatorPipe];
 

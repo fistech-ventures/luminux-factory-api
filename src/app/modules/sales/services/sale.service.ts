@@ -17,12 +17,14 @@ import {
   MoreThanOrEqual,
   Repository,
 } from 'typeorm';
+import { ENUM_CUSTOMER_TYPES } from '@src/shared';
 import { SaleItemDTO } from '../dtos/sale-item.dto';
 import { CreateSaleDTO } from '../dtos/create.dto';
 import { UpdateSaleDTO } from '../dtos/update.dto';
 import { FilterSaleDTO } from '../dtos/filter.dto';
 import { Sale } from '../entities/sale.entity';
 import { SaleItem } from '../entities/sale-item.entity';
+import { Customer } from '../../customer/entities/customer.entity';
 import { Product } from '../../product/entities/product.entity';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
 import { ProductService } from '../../product/services/product.service';
@@ -58,17 +60,30 @@ export class SaleService extends BaseService<Sale> {
     try {
       const { items, discount, paidAmount, ...restPayload } = payload;
 
+      // Customer type (B2B / B2C) drives the per-product average selling price.
+      const customer = await queryRunner.manager.findOne(Customer, {
+        where: { id: payload.customerId },
+      });
+      const customerType: ENUM_CUSTOMER_TYPES =
+        customer?.customerType === ENUM_CUSTOMER_TYPES.B2B
+          ? ENUM_CUSTOMER_TYPES.B2B
+          : ENUM_CUSTOMER_TYPES.B2C;
+
       let totalAmount = 0;
       const resolvedItems: Array<{
         item: SaleItemDTO;
         unitPrice: number;
+        unitCost: number;
         itemTotalAmount: number;
       }> = [];
 
       for (const item of items) {
-        const { unitPrice, itemTotalAmount } = await this.resolveSaleItem(item, queryRunner.manager);
+        const { unitPrice, unitCost, itemTotalAmount } = await this.resolveSaleItem(
+          item,
+          queryRunner.manager,
+        );
         totalAmount += itemTotalAmount;
-        resolvedItems.push({ item, unitPrice, itemTotalAmount });
+        resolvedItems.push({ item, unitPrice, unitCost, itemTotalAmount });
       }
 
       const grandTotal = totalAmount - (discount || 0);
@@ -97,18 +112,30 @@ export class SaleService extends BaseService<Sale> {
       // Now insert the items with the real saleId.
       const saleItems: SaleItem[] = [];
 
-      for (const { item, unitPrice, itemTotalAmount } of resolvedItems) {
+      for (const { item, unitPrice, unitCost, itemTotalAmount } of resolvedItems) {
         const saleItem = queryRunner.manager.create(SaleItem, {
           saleId: savedSale.id,
           productId: item.productId,
           variantId: item.variantId ?? null,
           quantity: item.quantity,
           sellingPrice: unitPrice,
+          sourcingPrice: unitCost,
           totalAmount: itemTotalAmount,
         });
 
         const savedItem = await queryRunner.manager.save(saleItem);
         saleItems.push(savedItem);
+      }
+
+      // Keep the per-product B2B / B2C average selling price up to date.
+      for (const { item, unitPrice } of resolvedItems) {
+        await this.updateProductAverageSalesPrice(
+          queryRunner.manager,
+          item.productId,
+          customerType,
+          unitPrice,
+          item.quantity,
+        );
       }
 
       if (dueAmount > 0) {
@@ -212,8 +239,13 @@ export class SaleService extends BaseService<Sale> {
   private async resolveSaleItem(
     item: SaleItemDTO,
     manager: EntityManager,
-  ): Promise<{ unitPrice: number; itemTotalAmount: number }> {
+  ): Promise<{ unitPrice: number; unitCost: number; itemTotalAmount: number }> {
     const product = await this.productService.isExist({ id: item.productId as any });
+
+    // Unit cost snapshot = the product's sourcing price at the time of sale.
+    // Variant purchases keep sourcing price at product level, so the same cost
+    // applies whether or not a variant is selected.
+    const unitCost = product.sourcingPrice || 0;
 
     if (item.variantId) {
       const variant = await this.productVariantOptionService.findOne({
@@ -253,7 +285,7 @@ export class SaleService extends BaseService<Sale> {
         },
       );
 
-      return { unitPrice, itemTotalAmount: unitPrice * item.quantity };
+      return { unitPrice, unitCost, itemTotalAmount: unitPrice * item.quantity };
     }
 
     const availableStock = product.stock || 0;
@@ -276,6 +308,46 @@ export class SaleService extends BaseService<Sale> {
       },
     );
 
-    return { unitPrice, itemTotalAmount: unitPrice * item.quantity };
+    return { unitPrice, unitCost, itemTotalAmount: unitPrice * item.quantity };
+  }
+
+  /**
+   * Updates a product's weighted average selling price for the sale's customer
+   * type (B2B / B2C). The quantity sold is used as the weight so the average
+   * reflects how many units were actually sold at each price.
+   */
+  private async updateProductAverageSalesPrice(
+    manager: EntityManager,
+    productId: string,
+    customerType: ENUM_CUSTOMER_TYPES,
+    unitPrice: number,
+    quantity: number,
+  ): Promise<void> {
+    const product = await manager.findOne(Product, { where: { id: productId } });
+    if (!product) {
+      return;
+    }
+
+    const isB2B = customerType === ENUM_CUSTOMER_TYPES.B2B;
+    const qtyField: 'b2bSoldQuantity' | 'b2cSoldQuantity' = isB2B
+      ? 'b2bSoldQuantity'
+      : 'b2cSoldQuantity';
+    const avgField: 'averageB2BSalesPrice' | 'averageB2CSalesPrice' = isB2B
+      ? 'averageB2BSalesPrice'
+      : 'averageB2CSalesPrice';
+
+    const oldQty = product[qtyField] || 0;
+    const oldAvg = product[avgField] || 0;
+    const newQty = oldQty + quantity;
+    const newAvg = newQty > 0 ? (oldAvg * oldQty + unitPrice * quantity) / newQty : unitPrice;
+
+    await manager.update(
+      Product,
+      { id: productId },
+      {
+        [qtyField]: newQty,
+        [avgField]: Math.round(newAvg * 100) / 100,
+      },
+    );
   }
 }

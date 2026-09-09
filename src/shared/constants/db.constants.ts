@@ -32,6 +32,7 @@ export enum ENUM_TABLE_NAMES {
   SALES = 'sales',
   SALE_ITEMS = 'sale_items',
   LEDGERS = 'ledgers',
+  PAYMENTS = 'payments',
 }
 
 export enum ENUM_COLUMN_TYPES {
