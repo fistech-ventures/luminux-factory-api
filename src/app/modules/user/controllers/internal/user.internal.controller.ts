@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InternalRequestInterceptor } from '@src/app/interceptors';
 import { FilterRoleDTO } from '@src/app/modules/acl/dtos';
@@ -79,5 +79,10 @@ export class UserInternalController {
   @Patch(':id')
   async updateOne(@Param('id') id: string, @Body() body: UpdateUserDTO): Promise<User> {
     return this.service.updateUser(id, body, this.RELATIONS);
+  }
+
+  @Delete(':id')
+  async deleteOne(@Param('id') id: string): Promise<SuccessResponse> {
+    return this.service.softDeleteOneBase(id);
   }
 }

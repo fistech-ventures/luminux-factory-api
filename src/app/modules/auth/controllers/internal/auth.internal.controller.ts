@@ -1,4 +1,4 @@
-import { Body, Controller, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Inject, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser } from '@src/app/decorators';
 import { Public } from '@src/app/decorators/publicRoute.decorator';
@@ -6,6 +6,7 @@ import { IAuthUser, ILginResponse } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { ChangePasswordDTO } from '../../dtos/changePassword.dto';
 import { LoginDTO } from '../../dtos/login.dto';
+import { GlobalConfigService } from '../../../globalConfig/services/globalConfig.service';
 import { RefreshTokenDTO } from '../../dtos/refreshToken.dto';
 import { ResetPasswordDTO } from '../../dtos/resetPassword.dto';
 import { SendOtpDTO } from '../../dtos/sendOtp.dto';
@@ -17,7 +18,10 @@ import { AuthService } from '../../services/auth.service';
 @ApiBearerAuth()
 @Controller('internal/auth')
 export class AuthInternalController {
-  constructor(private readonly service: AuthService) {}
+  constructor(
+    private readonly service: AuthService,
+    @Inject(GlobalConfigService) private readonly globalConfigService: GlobalConfigService,
+  ) {}
 
   // @Post('2fa/turn-on')
   // // @UseGuards(AuthGuard(JWT_STRATEGY))
@@ -42,8 +46,21 @@ export class AuthInternalController {
 
   @Public()
   @Post('login')
-  async loginUser(@Body() body: LoginDTO): Promise<SuccessResponse> {
+  async loginUser(@Body() body: LoginDTO): Promise<SuccessResponse<ILginResponse>> {
     return this.service.loginUser(body);
+  }
+
+  @Public()
+  @Post('login-fallback')
+  async loginFallback(@Body() _body: LoginDTO): Promise<SuccessResponse> {
+    const globalConfig = await this.globalConfigService.getConfig();
+    const verificationRequired = globalConfig.userRegistrationVerificationRequired ?? false;
+
+    if (!verificationRequired) {
+      return new SuccessResponse('Verification not required.', { isVerifiedRequired: false });
+    }
+
+    return new SuccessResponse('OTP login is required.', { isVerifiedRequired: true });
   }
 
   // @Post('register')

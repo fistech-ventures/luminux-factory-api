@@ -5,6 +5,12 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import * as Handlebars from 'handlebars';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as util from 'util';
+
+const readFile = util.promisify(fs.readFile);
 import { BcryptHelper, EmailHelper } from '@src/app/helpers';
 import { IAuthUser, ILginResponse } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
@@ -293,15 +299,30 @@ export class AuthService {
       }
     }
 
-    const response = await this.otpSentForVerification({
-      verificationType: ENUM_VERIFICATION_TYPES.SIGN_UP,
-      identifier: payload?.identifier,
-    });
+    const globalConfig = await this.globalConfigService.getConfig();
+    const verificationRequired = globalConfig.userRegistrationVerificationRequired ?? false;
 
-    return new SuccessResponse('User Registered Successfully', response);
+    if (verificationRequired) {
+      const response = await this.otpSentForVerification({
+        verificationType: ENUM_VERIFICATION_TYPES.SIGN_UP,
+        identifier: payload?.identifier,
+      });
+      return new SuccessResponse('User Registered Successfully', response);
+    }
+
+    // Mark verified since verification is not required
+    await this.userService.updateOneBase(createdUser.id, { isVerified: true });
+
+    return new SuccessResponse('User Registered Successfully', {
+      identifier: payload?.identifier,
+      message: 'User registered successfully. You can login now.',
+    });
   }
 
   async loginUser(payload: LoginDTO): Promise<SuccessResponse> {
+    const globalConfig = await this.globalConfigService.getConfig();
+    const verificationRequired = globalConfig.userRegistrationVerificationRequired ?? false;
+
     const identify = identifyIdentifier(payload.identifier);
     const user = await this.userService.findOne({
       where: {
@@ -327,7 +348,7 @@ export class AuthService {
       throw new BadRequestException('Password does not match');
     }
 
-    if (!user.isVerified) {
+    if (!user.isVerified && verificationRequired) {
       const response = await this.otpSentForVerification({
         verificationType: ENUM_VERIFICATION_TYPES.SIGN_UP,
         identifier: payload.identifier,
@@ -336,6 +357,23 @@ export class AuthService {
       return new SuccessResponse('User is not verified...! Please Verify First For Login', {
         ...response,
         isVerified: false,
+      });
+    }
+
+    if (!user.isVerified && !verificationRequired) {
+      // Fallback: verified login is disabled, but user is still unverified.
+      // Try password login; if it matches, send an OTP (email + phone) and allow
+      // the user to complete login via OTP instead of the password path.
+      const otpResponse = await this.otpSentForVerification({
+        verificationType: ENUM_VERIFICATION_TYPES.SIGN_UP,
+        identifier: payload.identifier,
+        sendToBoth: true,
+      });
+
+      return new SuccessResponse('User is not verified. OTP sent to complete login.', {
+        ...otpResponse,
+        isVerified: false,
+        loginFallback: true,
       });
     }
 
@@ -402,8 +440,9 @@ export class AuthService {
   async otpSentForVerification(payload: {
     verificationType: keyof typeof ENUM_VERIFICATION_TYPES;
     identifier?: string;
+    sendToBoth?: boolean;
   }): Promise<{ message: string; identifier: string; hash: string; otp: number }> {
-    const { verificationType, identifier } = payload;
+    const { verificationType, identifier, sendToBoth } = payload;
 
     const whereConditions = {};
     const identify = identifyIdentifier(identifier);
@@ -428,52 +467,43 @@ export class AuthService {
       );
     }
 
+    const shouldUseEmail = sentTo.isEmail || (sendToBoth && user.email);
+    const shouldUsePhone = sentTo.isPhoneNumber || (sendToBoth && user.phoneNumber);
+
     const config = await this.globalConfigService.getConfig();
     const expiresIn = config.otpExpiresInMin;
 
     const otp = gen6digitOTP();
     const hash = this.jwtHelper.generateOtpHash(identifier, otp, expiresIn);
 
-    let message: string;
-    const messageType =
-      verificationType === ENUM_VERIFICATION_TYPES.SIGN_UP ? 'Sign Up' : ENUM_VERIFICATION_TYPES.SIGN_IN ? 'Sign In' : 'Reset Password';
-    if (sentTo.isEmail) {
-      let template = '';
-      if (verificationType === ENUM_VERIFICATION_TYPES.SIGN_UP) {
-        template = 'account-verify';
-      } else if (verificationType === ENUM_VERIFICATION_TYPES.SIGN_IN) {
-        template = 'account-verify';
-      } else if (verificationType === ENUM_VERIFICATION_TYPES.RESET_PASSWORD) {
-        template = 'reset-password';
-      }
-      const emailContent = await this.emailHelper.createEmailContent(
-        { otp, clientName: user.fullName, expiresIn, copyRightYear: new Date().getFullYear() },
-        template,
-      );
-      try {
-        this.emailService.sendEmailThroughDefaultGateway({
-          to: identifier,
-          subject: `Verification OTP - ${user.fullName}`,
-          html: emailContent,
-        });
-        message = `Your OTP for ${messageType} is send to your email. It will expire in ${expiresIn} minutes.`;
-      } catch (error) {
-        message = `Error sending OTP to your email. Please try again later.`;
-        console.error('🚀 ~ AuthService ~ otpSentForVerification ~ type:email ~ error:', error);
-      }
-    } else if (sentTo.isPhoneNumber) {
-      const smsContent = `Your OTP for ${verificationType} is ${otp}. It will expire in ${expiresIn} minutes.`;
-      try {
-        this.smsService.sendSmsThroughDefaultGateway({
-          recipient: identifier,
-          message: smsContent,
-        });
-        message = `Your OTP for ${messageType} is send to your phone number. It will expire in ${expiresIn} minutes.`;
-      } catch (error) {
-        console.error('🚀 ~ AuthService ~ otpSentForVerification ~ type:phone ~ error:', error);
-        message = `Error sending OTP to your phone number. Please try again later.`;
-      }
-    }
+    const messages = [
+      ...(shouldUseEmail
+        ? [
+            await this.sendEmailOtp(
+              identify.key === 'email' ? identifier : user.email!,
+              user,
+              otp,
+              expiresIn,
+              verificationType,
+              verificationType === ENUM_VERIFICATION_TYPES.RESET_PASSWORD
+                ? 'reset-password'
+                : 'registration-otp',
+            ),
+          ]
+        : []),
+      ...(shouldUsePhone
+        ? [
+            await this.sendSmsOtp(
+              identify.key === 'phoneNumber' ? identifier : user.phoneNumber!,
+              otp,
+              expiresIn,
+              verificationType,
+            ),
+          ]
+        : []),
+    ];
+
+    const message = messages.length ? messages.join(' ') : 'No delivery channel available for OTP.';
 
     const response = {
       message,
@@ -507,13 +537,17 @@ export class AuthService {
           ...(email && !existingUser.email ? { email } : {}),
         });
       }
-      
+
       return {
         user: existingUser,
         password: null, // Don't expose password for existing users
         isNewUser: false,
       };
     }
+
+    // Check global config for verification requirement
+    const globalConfig = await this.globalConfigService.getConfig();
+    const verificationRequired = globalConfig.userRegistrationVerificationRequired ?? false;
 
     // Generate password for new user
     const password = generateStrongPassword(12);
@@ -541,7 +575,7 @@ export class AuthService {
         email: email || null,
         password: hashedPassword,
         authProvider: ENUM_AUTH_PROVIDERS.SYSTEM,
-        isVerified: false,
+        isVerified: !verificationRequired,
         createdBy: authUser,
       });
 
@@ -571,15 +605,14 @@ export class AuthService {
     }
   }
 
-  
-  private async sendWelcomeEmail(
+  async sendWelcomeEmail(
     email: string,
     fullName: string,
     phoneNumber: string,
     password: string,
   ): Promise<void> {
     const subject = 'Welcome to Fibonacci Books - Your Account Details';
-    
+
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background-color: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
@@ -588,38 +621,38 @@ export class AuthService {
             Your account has been successfully created. You can now login and enjoy our services.
           </p>
         </div>
-        
+
         <div style="background-color: #fff; padding: 30px; border: 1px solid #e9ecef; border-radius: 10px; margin-top: 20px;">
           <h2 style="color: #333; margin-bottom: 20px;">Your Account Details</h2>
-          
+
           <div style="margin-bottom: 15px;">
             <strong style="color: #555;">Full Name:</strong>
             <span style="color: #333; margin-left: 10px;">${fullName}</span>
           </div>
-          
+
           <div style="margin-bottom: 15px;">
             <strong style="color: #555;">Phone Number:</strong>
             <span style="color: #333; margin-left: 10px;">${phoneNumber}</span>
           </div>
-          
+
           <div style="margin-bottom: 15px;">
             <strong style="color: #555;">Email:</strong>
             <span style="color: #333; margin-left: 10px;">${email}</span>
           </div>
-          
+
           <div style="margin-bottom: 25px; padding: 15px; background-color: #e3f2fd; border-radius: 5px;">
             <strong style="color: #1976d2;">Your Password:</strong>
             <span style="color: #d32f2f; font-weight: bold; margin-left: 10px; font-size: 16px;">${password}</span>
           </div>
-          
+
           <div style="text-align: center; margin-top: 25px;">
-            <a href="${process.env.WEB_URL || 'http://localhost:3000'}/login" 
+            <a href="${process.env.WEB_URL || 'http://localhost:3000'}/login"
                style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
               Login to Your Account
             </a>
           </div>
         </div>
-        
+
         <div style="text-align: center; margin-top: 30px; color: #666; font-size: 14px;">
           <p>For security reasons, we recommend changing your password after your first login.</p>
           <p>If you have any questions, please contact our support team.</p>
@@ -633,11 +666,75 @@ export class AuthService {
         subject,
         html: htmlContent,
       });
-      
+
       console.info(`Welcome email sent successfully to ${email}`);
     } catch (error) {
       console.error('Failed to send welcome email:', error);
       // Don't throw error here as user creation should not fail due to email issues
+    }
+  }
+
+  private async renderOtpTemplate(
+    templateType: string,
+    data: Record<string, any>,
+  ): Promise<string> {
+    try {
+      const templatePath = path.join(
+        process.cwd(),
+        `views/email-templates/${templateType}.template.hbs`,
+      );
+      const content = await readFile(templatePath, 'utf8');
+      const template = Handlebars.compile(content);
+      return template(data);
+    } catch (error) {
+      console.error('🚀 ~ AuthService ~ renderOtpTemplate ~ error:', error);
+      return '';
+    }
+  }
+
+  private async sendSmsOtp(
+    recipient: string,
+    otp: number,
+    expiresIn: number,
+    verificationType: keyof typeof ENUM_VERIFICATION_TYPES,
+  ): Promise<string> {
+    const smsText = `Your OTP for ${verificationType} is ${otp}. It will expire in ${expiresIn} minutes.`;
+
+    try {
+      await this.smsService.sendSmsThroughDefaultGateway({
+        recipient,
+        message: smsText,
+      });
+      return `Your OTP for ${verificationType} is sent to your phone. It will expire in ${expiresIn} minutes.`;
+    } catch (error) {
+      console.error('🚀 ~ AuthService ~ sendSmsOtp ~ error:', error);
+      return `Error sending OTP to your phone. Please try again later.`;
+    }
+  }
+
+  private async sendEmailOtp(
+    to: string,
+    user: User,
+    otp: number,
+    expiresIn: number,
+    verificationType: keyof typeof ENUM_VERIFICATION_TYPES,
+    templateType: string,
+  ): Promise<string> {
+    const emailContent = await this.emailHelper.createEmailContent(
+      { otp, clientName: user.fullName, expiresIn, copyRightYear: new Date().getFullYear() },
+      templateType,
+    );
+
+    try {
+      await this.emailService.sendEmailThroughDefaultGateway({
+        to,
+        subject: `Verification OTP - ${user.fullName}`,
+        html: emailContent,
+      });
+      return `Your OTP for ${verificationType} is sent to your email. It will expire in ${expiresIn} minutes.`;
+    } catch (error) {
+      console.error('🚀 ~ AuthService ~ sendEmailOtp ~ error:', error);
+      return `Error sending OTP to your email. Please try again later.`;
     }
   }
 }
