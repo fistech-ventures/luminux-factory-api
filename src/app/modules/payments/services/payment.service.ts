@@ -1,6 +1,13 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base/base.service';
+import {
+  loadParties,
+  loadPurchases,
+  loadSales,
+  partyKey,
+} from '@src/app/helpers/transaction-details.helper';
+import { SuccessResponse } from '@src/app/types';
 import {
   commitTransaction,
   rollbackTransaction,
@@ -8,17 +15,33 @@ import {
 } from '@src/shared/utils/dborm.utils';
 import { DataSource, Repository } from 'typeorm';
 import { CreatePaymentDTO } from '../dtos/create.dto';
+import { FilterPaymentDTO } from '../dtos/filter.dto';
 import { UpdatePaymentDTO } from '../dtos/update.dto';
 import { Payment } from '../entities/payment.entity';
 import { Sale } from '../../sales/entities/sale.entity';
 import { Purchase } from '../../purchase/entities/purchase.entity';
+import { Customer } from '../../customer/entities/customer.entity';
+import { Supplier } from '../../supplier/entities/supplier.entity';
 import { LedgerService } from '../../ledger/services/ledger.service';
+
+export interface IPaymentWithDetails extends Payment {
+  party?: Customer | Supplier | null;
+  reference?: Sale | Purchase | null;
+}
 
 @Injectable()
 export class PaymentService extends BaseService<Payment> {
   constructor(
     @InjectRepository(Payment)
     private readonly _repo: Repository<Payment>,
+    @InjectRepository(Sale)
+    private readonly saleRepo: Repository<Sale>,
+    @InjectRepository(Purchase)
+    private readonly purchaseRepo: Repository<Purchase>,
+    @InjectRepository(Customer)
+    private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(Supplier)
+    private readonly supplierRepo: Repository<Supplier>,
     private readonly dataSource: DataSource,
     private readonly ledgerService: LedgerService,
   ) {
@@ -104,5 +127,62 @@ export class PaymentService extends BaseService<Payment> {
   async updatePayment(id: string, payload: UpdatePaymentDTO): Promise<Payment> {
     await this.isExist({ id: id as any });
     return this.updateOneBase(id, payload as any);
+  }
+
+  /**
+   * Payments list enriched with the counterparty (customer/supplier) and the
+   * sale/purchase the payment settles (including its items), so the payments
+   * screen can show what each transaction was for.
+   */
+  async findAllWithDetails(
+    filters: FilterPaymentDTO,
+  ): Promise<SuccessResponse<IPaymentWithDetails[]>> {
+    const response = await this.findAllBase(filters);
+    return new SuccessResponse<IPaymentWithDetails[]>(
+      response.message,
+      await this.attachDetails(response.data || []),
+      response.meta,
+    );
+  }
+
+  /** A single payment enriched with its party and linked sale/purchase details. */
+  async findOneWithDetails(id: string): Promise<IPaymentWithDetails> {
+    const payment = await this.findByIdBase(id);
+    if (!payment) {
+      throw new NotFoundException(`Payment With ID ${id} Not Found`);
+    }
+    const [detailed] = await this.attachDetails([payment]);
+    return detailed;
+  }
+
+  private async attachDetails(payments: Payment[]): Promise<IPaymentWithDetails[]> {
+    if (!payments.length) return [];
+
+    const [parties, sales, purchases] = await Promise.all([
+      loadParties(payments, this.customerRepo, this.supplierRepo),
+      loadSales(
+        payments
+          .filter((payment) => payment.referenceType === 'sale')
+          .map((payment) => payment.referenceId),
+        this.saleRepo,
+      ),
+      loadPurchases(
+        payments
+          .filter((payment) => payment.referenceType === 'purchase')
+          .map((payment) => payment.referenceId),
+        this.purchaseRepo,
+      ),
+    ]);
+
+    return payments.map((payment) => ({
+      ...payment,
+      party: parties.get(partyKey(payment.entityType, payment.entityId)) || null,
+      reference:
+        (payment.referenceType === 'sale'
+          ? sales.get(payment.referenceId)
+          : payment.referenceType === 'purchase'
+            ? purchases.get(payment.referenceId)
+            : null) || null,
+    }));
   }
 }

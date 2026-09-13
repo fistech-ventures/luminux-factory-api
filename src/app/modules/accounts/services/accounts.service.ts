@@ -1,11 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import {
+  loadExpenses,
+  loadParties,
+  loadPurchases,
+  loadSales,
+  partyKey,
+} from '@src/app/helpers/transaction-details.helper';
 import { ENUM_PAYMENT_METHODS, ENUM_TRANSACTION_TYPES } from '@src/shared';
 import { DataSource, Repository } from 'typeorm';
 import { Sale } from '../../sales/entities/sale.entity';
 import { Purchase } from '../../purchase/entities/purchase.entity';
 import { Expense } from '../../expense/entities/expense.entity';
 import { Payment } from '../../payments/entities/payment.entity';
+import { Customer } from '../../customer/entities/customer.entity';
+import { Supplier } from '../../supplier/entities/supplier.entity';
 import { AccountTransactionFilterDTO } from '../dtos/transaction-filter.dto';
 
 export interface IAccountBalance {
@@ -28,6 +37,13 @@ export interface IAccountTransaction {
   referenceId: string;
   description: string;
   entityType?: string;
+  entityId?: string;
+  // For payment rows: the sale/purchase the payment settles, if any.
+  linkedReferenceType?: string;
+  linkedReferenceId?: string;
+  // Resolved details attached to the response.
+  party?: Customer | Supplier | null;
+  reference?: Sale | Purchase | Expense | null;
 }
 
 export interface IAccountTransactionsResponse {
@@ -51,6 +67,10 @@ export class AccountsService {
     private readonly expenseRepo: Repository<Expense>,
     @InjectRepository(Payment)
     private readonly paymentRepo: Repository<Payment>,
+    @InjectRepository(Customer)
+    private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(Supplier)
+    private readonly supplierRepo: Repository<Supplier>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -151,7 +171,10 @@ export class AccountsService {
         s."paymentMethod" AS "paymentMethod",
         s."paidAmount" AS "amount",
         ('Sale ' || COALESCE(s."invoiceNo", '')) AS "description",
-        NULL AS "entityType"
+        'customer' AS "entityType",
+        s."customerId"::text AS "entityId",
+        NULL AS "linkedReferenceType",
+        NULL AS "linkedReferenceId"
       FROM "sales" s
       WHERE s."isActive" = true
         AND ($1::text IS NULL OR s."paymentMethod" = $1)
@@ -167,7 +190,10 @@ export class AccountsService {
         p."paymentMethod",
         p."paidAmount",
         'Purchase',
-        NULL
+        'supplier' AS "entityType",
+        p."supplierId"::text AS "entityId",
+        NULL AS "linkedReferenceType",
+        NULL AS "linkedReferenceId"
       FROM "purchases" p
       WHERE p."isActive" = true
         AND ($1::text IS NULL OR p."paymentMethod" = $1)
@@ -183,7 +209,10 @@ export class AccountsService {
         e."paymentMethod",
         e."amountSpent",
         e."purpose",
-        NULL
+        NULL AS "entityType",
+        NULL AS "entityId",
+        NULL AS "linkedReferenceType",
+        NULL AS "linkedReferenceId"
       FROM "expenses" e
       WHERE e."isActive" = true
         AND ($1::text IS NULL OR e."paymentMethod" = $1)
@@ -202,7 +231,10 @@ export class AccountsService {
           CASE WHEN pay."entityType" = 'customer'
             THEN 'Collection from customer'
             ELSE 'Payment to supplier' END),
-        pay."entityType"
+        pay."entityType" AS "entityType",
+        pay."entityId"::text AS "entityId",
+        pay."referenceType" AS "linkedReferenceType",
+        pay."referenceId"::text AS "linkedReferenceId"
       FROM "payments" pay
       WHERE pay."isActive" = true
         AND ($1::text IS NULL OR pay."paymentMethod" = $1)
@@ -238,9 +270,67 @@ export class AccountsService {
     ]);
 
     const summary = summaryRows?.[0] || {};
+    const transactions = (rows || []) as IAccountTransaction[];
+
+    // Resolve the counterparty and the business document behind every row so
+    // the UI can show what each money movement was for.
+    const saleIds: string[] = [];
+    const purchaseIds: string[] = [];
+    const expenseIds: string[] = [];
+
+    for (const transaction of transactions) {
+      if (transaction.referenceType === 'sale' && transaction.referenceId) {
+        saleIds.push(transaction.referenceId);
+      } else if (transaction.referenceType === 'purchase' && transaction.referenceId) {
+        purchaseIds.push(transaction.referenceId);
+      } else if (transaction.referenceType === 'expense' && transaction.referenceId) {
+        expenseIds.push(transaction.referenceId);
+      } else if (transaction.referenceType === 'payment') {
+        // Payments point at the sale/purchase they settle.
+        if (transaction.linkedReferenceType === 'sale' && transaction.linkedReferenceId) {
+          saleIds.push(transaction.linkedReferenceId);
+        } else if (
+          transaction.linkedReferenceType === 'purchase' &&
+          transaction.linkedReferenceId
+        ) {
+          purchaseIds.push(transaction.linkedReferenceId);
+        }
+      }
+    }
+
+    const [parties, sales, purchases, expenses] = await Promise.all([
+      loadParties(transactions, this.customerRepo, this.supplierRepo),
+      loadSales(saleIds, this.saleRepo),
+      loadPurchases(purchaseIds, this.purchaseRepo),
+      loadExpenses(expenseIds, this.expenseRepo),
+    ]);
+
+    const data: IAccountTransaction[] = transactions.map((transaction) => {
+      let reference: Sale | Purchase | Expense | null = null;
+
+      if (transaction.referenceType === 'sale') {
+        reference = sales.get(transaction.referenceId) || null;
+      } else if (transaction.referenceType === 'purchase') {
+        reference = purchases.get(transaction.referenceId) || null;
+      } else if (transaction.referenceType === 'expense') {
+        reference = expenses.get(transaction.referenceId) || null;
+      } else if (transaction.referenceType === 'payment') {
+        if (transaction.linkedReferenceType === 'sale') {
+          reference = sales.get(transaction.linkedReferenceId) || null;
+        } else if (transaction.linkedReferenceType === 'purchase') {
+          reference = purchases.get(transaction.linkedReferenceId) || null;
+        }
+      }
+
+      return {
+        ...transaction,
+        party: parties.get(partyKey(transaction.entityType, transaction.entityId)) || null,
+        reference,
+      };
+    });
 
     return {
-      data: rows as IAccountTransaction[],
+      data,
       total: Number(summary.total) || 0,
       page,
       limit,

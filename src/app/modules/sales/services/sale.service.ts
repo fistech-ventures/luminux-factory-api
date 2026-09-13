@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base/base.service';
+import { SALE_DETAIL_RELATIONS } from '@src/app/helpers/transaction-details.helper';
 import { SuccessResponse } from '@src/app/types';
 import {
   commitTransaction,
@@ -46,13 +47,7 @@ export class SaleService extends BaseService<Sale> {
     super(_repo);
   }
 
-  public readonly RELATIONS: FindOptionsRelations<Sale> = { 
-    customer: true,
-    items: {
-      product: true,
-      variant: true,
-    },
-  };
+  public readonly RELATIONS: FindOptionsRelations<Sale> = SALE_DETAIL_RELATIONS;
 
   async createSale(payload: CreateSaleDTO): Promise<Sale> {
     const queryRunner = await startTransaction(this.dataSource);
@@ -164,7 +159,7 @@ export class SaleService extends BaseService<Sale> {
 
       return await this.findOne({
         where: { id: savedSale.id },
-        relations: { items: { product: true, variant: true }, customer: true, soldBy: true },
+        relations: SALE_DETAIL_RELATIONS,
       });
     } catch (error) {
       await rollbackTransaction(queryRunner);
@@ -213,7 +208,7 @@ export class SaleService extends BaseService<Sale> {
 
     const [data, total] = await this._repo.findAndCount({
       where,
-      relations: { items: { product: true, variant: true }, customer: true, soldBy: true },
+      relations: SALE_DETAIL_RELATIONS,
       skip: page && limit ? (page - 1) * limit : undefined,
       take: limit,
     });

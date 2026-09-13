@@ -5,6 +5,8 @@ import { SalesModule } from '../sales/sales.module';
 import { PurchaseModule } from '../purchase/purchase.module';
 import { ExpenseModule } from '../expense/expense.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { CustomerModule } from '../customer/customer.module';
+import { SupplierModule } from '../supplier/supplier.module';
 
 const services = [AccountsService];
 const subscribers = [];
@@ -12,7 +14,14 @@ const webControllers = [];
 const internalControllers = [AccountsInternalController];
 
 @Module({
-  imports: [SalesModule, PurchaseModule, ExpenseModule, PaymentsModule],
+  imports: [
+    SalesModule,
+    PurchaseModule,
+    ExpenseModule,
+    PaymentsModule,
+    CustomerModule,
+    SupplierModule,
+  ],
   providers: [...services, ...subscribers],
   exports: [...services, ...subscribers],
   controllers: [...webControllers, ...internalControllers],

@@ -49,7 +49,7 @@ export class SaleInternalController {
 
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<Sale> {
-    return await this.saleService.findByIdBase(id);
+    return await this.saleService.findByIdBase(id, { relations: this.saleService.RELATIONS });
   }
 
   @Patch(':id')

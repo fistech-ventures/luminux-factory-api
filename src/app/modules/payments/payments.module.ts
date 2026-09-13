@@ -5,6 +5,8 @@ import { Payment } from './entities/payment.entity';
 import { PaymentService } from './services/payment.service';
 import { SalesModule } from '../sales/sales.module';
 import { PurchaseModule } from '../purchase/purchase.module';
+import { CustomerModule } from '../customer/customer.module';
+import { SupplierModule } from '../supplier/supplier.module';
 
 const entities = [Payment];
 const services = [PaymentService];
@@ -13,7 +15,13 @@ const webControllers = [];
 const internalControllers = [PaymentInternalController];
 
 @Module({
-  imports: [TypeOrmModule.forFeature(entities), SalesModule, PurchaseModule],
+  imports: [
+    TypeOrmModule.forFeature(entities),
+    SalesModule,
+    PurchaseModule,
+    CustomerModule,
+    SupplierModule,
+  ],
   providers: [...services, ...subscribers],
   exports: [...services, ...subscribers, TypeOrmModule],
   controllers: [...webControllers, ...internalControllers],

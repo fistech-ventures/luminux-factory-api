@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base/base.service';
+import { PURCHASE_DETAIL_RELATIONS } from '@src/app/helpers/transaction-details.helper';
 import {
   commitTransaction,
   rollbackTransaction,
@@ -31,9 +32,7 @@ export class PurchaseService extends BaseService<Purchase> {
     super(_repo);
   }
 
-  public readonly RELATIONS: FindOptionsRelations<Purchase> = {
-    supplier: true,
-  };
+  public readonly RELATIONS: FindOptionsRelations<Purchase> = PURCHASE_DETAIL_RELATIONS;
 
   async createPurchase(payload: CreatePurchaseDTO): Promise<Purchase> {
     const queryRunner = await startTransaction(this.dataSource);
@@ -153,7 +152,7 @@ export class PurchaseService extends BaseService<Purchase> {
 
       return await this.findOne({
         where: { id: savedPurchase.id },
-        relations: { items: { product: true, variant: true }, supplier: true, purchasedBy: true },
+        relations: PURCHASE_DETAIL_RELATIONS,
       });
     } catch (error) {
       await rollbackTransaction(queryRunner);

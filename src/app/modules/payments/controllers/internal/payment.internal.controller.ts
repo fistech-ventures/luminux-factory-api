@@ -31,12 +31,12 @@ export class PaymentInternalController {
 
   @Get()
   async findAll(@Query() query: FilterPaymentDTO): Promise<any> {
-    return await this.paymentService.findAllBase(query);
+    return await this.paymentService.findAllWithDetails(query);
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<Payment> {
-    return await this.paymentService.findByIdBase(id);
+    return await this.paymentService.findOneWithDetails(id);
   }
 
   @Patch(':id')
