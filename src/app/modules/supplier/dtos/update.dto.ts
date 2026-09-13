@@ -18,7 +18,7 @@ export class UpdateSupplierDTO {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  contactPerson: string;
+  contactPerson?: string;
 
   @ApiProperty({
     name: 'contactNumber',
