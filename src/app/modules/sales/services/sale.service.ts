@@ -148,13 +148,17 @@ export class SaleService extends BaseService<Sale> {
 
       await commitTransaction(queryRunner);
 
-      // Generate and store the invoice PDF. Non-fatal: a sale must never fail
-      // because PDF generation/storage hiccuped - the invoice can always be
-      // regenerated on demand via GET /internal/sales/:id/invoice.
+      // Generate and store the invoice PDF on Cloudflare R2.
+      // The sale is already committed, so invoice generation failure does not
+      // roll back the sale — but we must still surface the error so it is not
+      // silently ignored.
       try {
         await this.invoiceService.generateAndStoreInvoice(savedSale.id);
       } catch (invoiceError) {
-        console.error('Invoice generation failed, sale saved without invoice:', invoiceError);
+        console.error('Invoice generation failed after sale commit, sale saved without invoiceUrl:', invoiceError);
+        // Re-throw so the API caller knows the invoice is missing and can
+        // retry via GET /internal/sales/:id/invoice.
+        throw new Error(`Invoice generation failed: ${(invoiceError as Error).message}`);
       }
 
       return await this.findOne({

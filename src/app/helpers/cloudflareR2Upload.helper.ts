@@ -27,26 +27,21 @@ export class R2UploadHelper {
     fileName?: string,
     contentType?: string,
   ): Promise<string> {
-    try {
-      const key = fileName || `${Date.now()}`;
-      const filePath = `${folder}/${key}`;
+    const key = fileName || `${Date.now()}`;
+    const filePath = `${folder}/${key}`;
 
-      const command = new PutObjectCommand({
-        Bucket: ENV.r2.bucketName,
-        Key: filePath,
-        Body: binary,
-        ContentType: contentType || 'image/jpeg',
-        CacheControl: 'public, max-age=31536000, immutable',
-      });
+    const command = new PutObjectCommand({
+      Bucket: ENV.r2.bucketName,
+      Key: filePath,
+      Body: binary,
+      ContentType: contentType || 'image/jpeg',
+      CacheControl: 'public, max-age=31536000, immutable',
+    });
 
-      await this.s3Client.send(command);
+    await this.s3Client.send(command);
 
-      const publicDomain = ENV.r2.publicDomain || 'https://assets.dailydestinybd.com';
-      return `${publicDomain}/${filePath}`;
-    } catch (error) {
-      console.error('🚀 ~ R2UploadHelper ~ error:', error);
-      return '';
-    }
+    const publicDomain = ENV.r2.publicDomain || 'https://assets.dailydestinybd.com';
+    return `${publicDomain}/${filePath}`;
   }
 
   public async downloadAndUploadToR2(payload: {

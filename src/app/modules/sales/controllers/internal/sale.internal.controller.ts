@@ -9,6 +9,7 @@ import {
   Query,
   StreamableFile,
   UseInterceptors,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SaleService } from '../../services/sale.service';
@@ -49,7 +50,11 @@ export class SaleInternalController {
 
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<Sale> {
-    return await this.saleService.findByIdBase(id, { relations: this.saleService.RELATIONS });
+    const sale = await this.saleService.findByIdBase(id, { relations: this.saleService.RELATIONS });
+    if (!sale) {
+      throw new NotFoundException(`Sale not found: ${id}`);
+    }
+    return sale;
   }
 
   @Patch(':id')

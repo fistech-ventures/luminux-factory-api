@@ -107,33 +107,32 @@ export class InvoiceService {
   }
 
   /**
-   * Generates the invoice PDF for a sale and stores it, returning the public
-   * URL. Never throws for storage/PDF failures - returns null instead so the
-   * caller can keep the sale intact.
+   * Generates the invoice PDF for a sale and stores it on Cloudflare R2,
+   * returning the public URL. Throws on any failure so the caller can decide
+   * how to handle it.
    */
-  async generateAndStoreInvoice(saleId: string): Promise<string | null> {
-    try {
-      const sale = await this.findSaleWithInvoiceData(saleId);
-      if (!sale) return null;
-
-      const pdfBuffer = await this.generateInvoicePdf(sale);
-      const fileName = `${sale.invoiceNo || sale.id}.pdf`;
-
-      const url = await this.r2UploadHelper.uploadBinary(
-        'invoices',
-        pdfBuffer,
-        fileName,
-        'application/pdf',
-      );
-
-      if (url) {
-        await this.saleRepo.update({ id: sale.id }, { invoiceUrl: url });
-      }
-      return url || null;
-    } catch (error) {
-      this.logger.error(`Invoice generation failed for sale ${saleId}`, error);
-      return null;
+  async generateAndStoreInvoice(saleId: string): Promise<string> {
+    const sale = await this.findSaleWithInvoiceData(saleId);
+    if (!sale) {
+      throw new Error(`Sale not found: ${saleId}`);
     }
+
+    const pdfBuffer = await this.generateInvoicePdf(sale);
+    const fileName = `${sale.invoiceNo || sale.id}.pdf`;
+
+    const url = await this.r2UploadHelper.uploadBinary(
+      'invoices',
+      pdfBuffer,
+      fileName,
+      'application/pdf',
+    );
+
+    if (!url) {
+      throw new Error(`R2 upload returned empty URL for sale ${saleId}`);
+    }
+
+    await this.saleRepo.update({ id: sale.id }, { invoiceUrl: url });
+    return url;
   }
 
   /** Rounds to 2 decimals and returns a plain number (safe for the words helper). */
