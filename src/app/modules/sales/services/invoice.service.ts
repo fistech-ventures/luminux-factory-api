@@ -4,6 +4,8 @@ import { HtmlHelper, PdfGeneratorHelper, R2UploadHelper } from '@src/app/helpers
 import { GlobalConfigService } from '@src/app/modules/globalConfig/services/globalConfig.service';
 import { Repository } from 'typeorm';
 import dayjs from 'dayjs';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Sale } from '../entities/sale.entity';
 import { SaleItem } from '../entities/sale-item.entity';
 
@@ -55,49 +57,7 @@ export class InvoiceService {
 
   /** Renders the invoice HTML for a (fully loaded) sale. */
   async renderInvoiceHtml(sale: Sale): Promise<string> {
-    let business: Record<string, any> = {};
-    try {
-      const config = await this.globalConfigService.getConfig();
-      business = {
-        name: config.name,
-        logo: config.logo,
-        address: config.address,
-        phone: config.phone,
-        currency: config.currency ? `${config.currency}` : '',
-      };
-    } catch (error) {
-      this.logger.warn('Global config unavailable for invoice, using empty business block', error);
-    }
-
-    const items: IInvoiceItem[] = (sale.items || []).map((item) => ({
-      title: item.product?.title || 'Unknown product',
-      variantLabel: this.getVariantLabel(item),
-      quantity: item.quantity,
-      unitPrice: this.round2(item.sellingPrice),
-      total: this.round2(item.totalAmount),
-    }));
-
-    const data = {
-      business,
-      invoiceCode: sale.invoiceNo || sale.id,
-      date: sale.date ? dayjs(sale.date).format('DD MMM YYYY') : '',
-      paymentStatus: this.getPaymentStatus(sale),
-      customerName: sale.customer?.name || 'Walk-in Customer',
-      customerPhone: sale.customer?.contactNumber,
-      customerAddress: sale.customer?.address,
-      customerCompany: sale.customer?.companyName,
-      soldByName: sale.soldBy?.fullName || '—',
-      paymentMethod: sale.paymentMethod || '—',
-      items,
-      subTotal: this.round2(sale.totalAmount),
-      discount: this.round2(sale.discount),
-      grandTotal: this.round2(sale.grandTotal),
-      paidAmount: this.round2(sale.paidAmount),
-      dueAmount: this.round2(sale.dueAmount),
-      currencyName: 'Taka',
-    };
-
-    return await this.htmlHelper.createHtmlContent(data, 'sale-invoice');
+    return await this.renderInvoiceTemplate(sale, 'sale-invoice');
   }
 
   /** Generates the invoice PDF for a (fully loaded) sale. */
@@ -133,6 +93,100 @@ export class InvoiceService {
 
     await this.saleRepo.update({ id: sale.id }, { invoiceUrl: url });
     return url;
+  }
+
+  /** Renders the invoice HTML for a (fully loaded) sale using the specified template. */
+  private async renderInvoiceTemplate(sale: Sale, templateName: string): Promise<string> {
+    let business: Record<string, any> = {};
+    try {
+      const config = await this.globalConfigService.getConfig();
+      business = {
+        name: config.name,
+        logo: config.logo,
+        address: config.address,
+        phone: config.phone,
+        currency: config.currency ? `${config.currency}` : '',
+      };
+    } catch (error) {
+      this.logger.warn('Global config unavailable for invoice, using empty business block', error);
+    }
+
+    const items: IInvoiceItem[] = (sale.items || []).map((item) => ({
+      title: item.product?.title || 'Unknown product',
+      variantLabel: this.getVariantLabel(item),
+      quantity: item.quantity,
+      unitPrice: this.round2(item.sellingPrice),
+      total: this.round2(item.totalAmount),
+    }));
+
+    const customerCompany = sale.customer?.companyName;
+    const customerName = sale.customer?.name || 'Walk-in Customer';
+    const customerAddress = sale.customer?.address;
+
+    // Convert images to base64 for PDF generation
+    let headerImageBase64 = '';
+    let footerImageBase64 = '';
+    let watermarkImageBase64 = '';
+
+    try {
+      const headerImagePath = path.join(process.cwd(), 'assets/invoice-header.png');
+      const headerImageBuffer = fs.readFileSync(headerImagePath);
+      headerImageBase64 = `data:image/png;base64,${headerImageBuffer.toString('base64')}`;
+    } catch (error) {
+      this.logger.warn(
+        'Header image not found, invoice will be generated without header image',
+        error,
+      );
+    }
+
+    try {
+      const footerImagePath = path.join(process.cwd(), 'assets/invoice-footer.png');
+      const footerImageBuffer = fs.readFileSync(footerImagePath);
+      footerImageBase64 = `data:image/png;base64,${footerImageBuffer.toString('base64')}`;
+    } catch (error) {
+      this.logger.warn(
+        'Footer image not found, invoice will be generated without footer image',
+        error,
+      );
+    }
+
+    try {
+      const watermarkImagePath = path.join(process.cwd(), 'assets/watermark-image.png');
+      const watermarkImageBuffer = fs.readFileSync(watermarkImagePath);
+      watermarkImageBase64 = `data:image/png;base64,${watermarkImageBuffer.toString('base64')}`;
+    } catch (error) {
+      this.logger.warn(
+        'Watermark image not found, invoice will be generated without watermark',
+        error,
+      );
+    }
+
+    const data = {
+      business,
+      invoiceCode: sale.invoiceNo || sale.id,
+      date: sale.date ? dayjs(sale.date).format('DD MMM YYYY') : '',
+      paymentStatus: this.getPaymentStatus(sale),
+      customerName,
+      customerPhone: sale.customer?.contactNumber,
+      customerAddress,
+      customerCompany,
+      shippingTo: sale.shippingTo || customerCompany || customerName,
+      shippingAddress: sale.shippingAddress || customerAddress || '',
+      soldByName: sale.soldBy?.fullName || '—',
+      paymentMethod: sale.paymentMethod || '—',
+      items,
+      subTotal: this.round2(sale.totalAmount),
+      discount: this.round2(sale.discount),
+      grandTotal: this.round2(sale.grandTotal),
+      paidAmount: this.round2(sale.paidAmount),
+      dueAmount: this.round2(sale.dueAmount),
+      currencyName: 'Taka',
+      headerImage: headerImageBase64,
+      footerImage: footerImageBase64,
+      watermarkImage: watermarkImageBase64,
+    };
+
+    return await this.htmlHelper.createHtmlContent(data, templateName);
   }
 
   /** Rounds to 2 decimals and returns a plain number (safe for the words helper). */
