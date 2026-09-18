@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import * as puppeteer from 'puppeteer';
+import * as fs from 'fs';
 
 interface IQueueItem {
   id: string;
@@ -209,8 +210,9 @@ export class PdfGeneratorHelper implements OnModuleDestroy {
         await this.delay(this.retryDelay * item.retryCount);
       } else {
         // Max retries reached or shutting down
+        const errorMessage = error instanceof Error ? error.message : String(error);
         const finalError = new Error(
-          `PDF generation failed after ${item.retryCount} retries: ${error.message}`,
+          `PDF generation failed after ${item.retryCount} retries: ${errorMessage}`,
         );
         item.reject(finalError);
         this.logger.error(`Item ${item.id} rejected after ${item.retryCount} retries`);
@@ -295,9 +297,33 @@ export class PdfGeneratorHelper implements OnModuleDestroy {
 
       this.logger.log('Launching browser...');
 
+      // Try to use system Chrome/Chromium first (more reliable on VPS)
+      const chromePaths = [
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/snap/bin/chromium',
+        '/snap/bin/chromium-browser',
+      ];
+
+      let executablePath = undefined;
+      for (const chromePath of chromePaths) {
+        try {
+          if (fs.existsSync(chromePath)) {
+            executablePath = chromePath;
+            this.logger.log(`Using system Chrome at: ${chromePath}`);
+            break;
+          }
+        } catch (_error) {
+          // Continue to next path
+        }
+      }
+
       this.browser = await puppeteer.launch({
         headless: true,
         timeout: this.browserLaunchTimeout,
+        executablePath,
         args: [
           '--no-sandbox',
           '--disable-dev-shm-usage',
