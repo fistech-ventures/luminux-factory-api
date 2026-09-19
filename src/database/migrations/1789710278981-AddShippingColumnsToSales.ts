@@ -4,16 +4,16 @@ export class AddShippingColumnsToSales1789710278981 implements MigrationInterfac
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
             ALTER TABLE "sales" 
-            ADD COLUMN "shippingTo" varchar NOT NULL DEFAULT '',
-            ADD COLUMN "shippingAddress" varchar
+            ADD COLUMN IF NOT EXISTS "shippingTo" varchar NOT NULL DEFAULT '',
+            ADD COLUMN IF NOT EXISTS "shippingAddress" varchar
         `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
             ALTER TABLE "sales" 
-            DROP COLUMN "shippingTo",
-            DROP COLUMN "shippingAddress"
+            DROP COLUMN IF EXISTS "shippingTo",
+            DROP COLUMN IF EXISTS "shippingAddress"
         `);
   }
 }

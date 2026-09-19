@@ -53,7 +53,7 @@ export class SaleService extends BaseService<Sale> {
     const queryRunner = await startTransaction(this.dataSource);
 
     try {
-      const { items, discount, paidAmount, ...restPayload } = payload;
+      const { items, discount, paidAmount, shippingTo, shippingAddress, shippingContact, ...restPayload } = payload;
 
       // Customer type (B2B / B2C) drives the per-product average selling price.
       const customer = await queryRunner.manager.findOne(Customer, {
@@ -63,6 +63,13 @@ export class SaleService extends BaseService<Sale> {
         customer?.customerType === ENUM_CUSTOMER_TYPES.B2B
           ? ENUM_CUSTOMER_TYPES.B2B
           : ENUM_CUSTOMER_TYPES.B2C;
+
+      // Combine shipping fields into shippingAddress object
+      const finalShippingAddress = {
+        name: shippingTo || customer?.companyName || customer?.name || '',
+        contactNumber: shippingContact || customer?.contactNumber || '',
+        address: shippingAddress || customer?.address || '',
+      };
 
       let totalAmount = 0;
       const resolvedItems: Array<{
@@ -100,6 +107,9 @@ export class SaleService extends BaseService<Sale> {
         grandTotal,
         paidAmount,
         dueAmount,
+        shippingTo: finalShippingAddress.name,
+        shippingAddress: finalShippingAddress.address,
+        shippingContact: finalShippingAddress.contactNumber,
       });
 
       const savedSale = await queryRunner.manager.save(sale);

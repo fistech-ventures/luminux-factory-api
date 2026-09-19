@@ -50,7 +50,7 @@ export class CreateSaleDTO {
   @IsEnum(ENUM_PAYMENT_METHODS)
   paymentMethod: ENUM_PAYMENT_METHODS;
 
-  @ApiProperty({ type: String, required: true, example: 'home' })
+  @ApiProperty({ type: String, required: true, example: 'Home' })
   @IsNotEmpty()
   @IsString()
   shippingTo: string;
@@ -59,6 +59,11 @@ export class CreateSaleDTO {
   @IsOptional()
   @IsString()
   shippingAddress?: string;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  shippingContact?: string;
 
   @ApiProperty({ type: String, required: true, example: 'user uuid' })
   @IsNotEmpty()

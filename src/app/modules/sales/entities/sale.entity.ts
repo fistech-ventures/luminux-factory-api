@@ -53,6 +53,9 @@ export class Sale extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, nullable: true })
   shippingAddress?: string;
 
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, nullable: true })
+  shippingContact?: string;
+
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   soldBy?: User;
 

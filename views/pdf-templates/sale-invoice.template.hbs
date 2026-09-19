@@ -205,9 +205,14 @@
         <div class="parties">
           <div class="party">
             <h3>Bill To</h3>
-            <div class="name">{{customerName}}</div>
+            <div class="name">
+              {{#if customerCompany}}
+                {{customerCompany}}
+              {{else}}
+                {{customerName}}
+              {{/if}}
+            </div>
             <div class="detail">
-              {{#if customerCompany}}{{customerCompany}}<br />{{/if}}
               {{#if customerPhone}}Phone: {{customerPhone}}<br />{{/if}}
               {{#if customerAddress}}{{customerAddress}}{{/if}}
             </div>
@@ -216,6 +221,7 @@
             <h3>Ship To</h3>
             <div class="name">{{shippingTo}}</div>
             <div class="detail">
+              {{#if shippingContact}}Phone: {{shippingContact}}<br />{{/if}}
               {{#if shippingAddress}}{{shippingAddress}}{{/if}}
             </div>
           </div>

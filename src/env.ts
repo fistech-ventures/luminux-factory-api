@@ -165,4 +165,6 @@ export const ormConfig = {
   synchronize: ENV.db.synchronize,
   logging: ENV.db.logging,
   autoLoadEntities: true,
+  migrationsRun: true,
+  migrations: [path.join(__dirname, 'database/migrations/*{.ts,.js}')],
 };

@@ -172,6 +172,7 @@ export class InvoiceService {
       customerCompany,
       shippingTo: sale.shippingTo || customerCompany || customerName,
       shippingAddress: sale.shippingAddress || customerAddress || '',
+      shippingContact: sale.shippingContact || sale.customer?.contactNumber || '',
       soldByName: sale.soldBy?.fullName || '—',
       paymentMethod: sale.paymentMethod || '—',
       items,

@@ -42,14 +42,20 @@ export class UpdateSaleDTO {
   @IsEnum(ENUM_PAYMENT_METHODS)
   paymentMethod?: ENUM_PAYMENT_METHODS;
 
-  @ApiProperty({ type: String, required: false, example: 'home' })
+  @ApiProperty({ type: String, required: false, example: 'Home' })
   @IsOptional()
   @IsString()
   shippingTo?: string;
 
   @ApiProperty({ type: String, required: false })
   @IsOptional()
+  @IsString()
   shippingAddress?: string;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  shippingContact?: string;
 
   @ApiProperty({ type: String, required: false, example: 'user uuid' })
   @IsOptional()
