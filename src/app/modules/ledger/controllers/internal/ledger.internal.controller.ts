@@ -12,8 +12,8 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { LedgerService } from '../../services/ledger.service';
 import { CreateLedgerDTO, UpdateLedgerDTO, FilterLedgerDTO } from '../../dtos/ledger.dto';
+import { GetLedgerStatementDTO } from '../../dtos/get-ledger-statement.dto';
 import { Ledger } from '../../entities/ledger.entity';
-import { SuccessResponse } from '@src/app/types';
 import { InternalRequestInterceptor } from '@src/app/interceptors';
 
 @ApiTags('Ledger Internal')
@@ -34,7 +34,7 @@ export class LedgerInternalController {
   }
 
   @Get('filter')
-  async findAllWithFilters(@Query() filters: FilterLedgerDTO): Promise<SuccessResponse<Ledger[]>> {
+  async findAllWithFilters(@Query() filters: FilterLedgerDTO): Promise<any> {
     return await this.ledgerService.findAllWithFilters(filters);
   }
 
@@ -50,6 +50,11 @@ export class LedgerInternalController {
     @Param('supplierId') supplierId: string,
   ): Promise<{ totalDue: number; totalPaid: number; balance: number }> {
     return await this.ledgerService.getSupplierBalance(supplierId);
+  }
+
+  @Get('statement')
+  async getStatement(@Query() query: GetLedgerStatementDTO): Promise<any> {
+    return await this.ledgerService.getStatement(query);
   }
 
   @Get(':id')

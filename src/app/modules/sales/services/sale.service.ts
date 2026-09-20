@@ -148,11 +148,24 @@ export class SaleService extends BaseService<Sale> {
           entityType: 'customer',
           entityId: payload.customerId,
           type: 'due',
-          amount: dueAmount,
+          amount: grandTotal,
           referenceId: savedSale.id,
           referenceType: 'sale',
           description: `Sale to customer - Due amount`,
-          transactionDate: new Date(),
+          transactionDate: payload.date,
+        });
+      }
+
+      if (paidAmount > 0) {
+        await this.ledgerService.createLedgerEntry({
+          entityType: 'customer',
+          entityId: payload.customerId,
+          type: 'paid',
+          amount: paidAmount,
+          referenceId: savedSale.id,
+          referenceType: 'sale',
+          description: 'Payment received at time of sale',
+          transactionDate: payload.date,
         });
       }
 

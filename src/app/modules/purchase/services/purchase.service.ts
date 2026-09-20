@@ -140,11 +140,24 @@ export class PurchaseService extends BaseService<Purchase> {
           entityType: 'supplier',
           entityId: payload.supplierId,
           type: 'due',
-          amount: dueAmount,
+          amount: totalPurchaseAmount,
           referenceId: savedPurchase.id,
           referenceType: 'purchase',
           description: `Purchase from supplier - Due amount`,
-          transactionDate: new Date(),
+          transactionDate: payload.purchaseDate,
+        });
+      }
+
+      if (paidAmount > 0) {
+        await this.ledgerService.createLedgerEntry({
+          entityType: 'supplier',
+          entityId: payload.supplierId,
+          type: 'paid',
+          amount: paidAmount,
+          referenceId: savedPurchase.id,
+          referenceType: 'purchase',
+          description: 'Payment made at time of purchase',
+          transactionDate: payload.purchaseDate,
         });
       }
 
