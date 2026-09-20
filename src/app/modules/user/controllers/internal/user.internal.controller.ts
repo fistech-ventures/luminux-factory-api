@@ -54,7 +54,7 @@ export class UserInternalController {
   async createOneStuff(@Body() body: UserCreateDTO, @AuthUser() authUser: IAuthUser): Promise<User> {
     return this.service.createUser({
       ...body,
-      roles: [
+      roles: body.roles || [
         ENUM_ACL_DEFAULT_ROLES.INTERNAL,
         ENUM_ACL_DEFAULT_ROLES.CUSTOMER
       ]

@@ -78,7 +78,24 @@ export class UserService extends BaseService<User> {
     } catch (error) {
       await rollbackTransaction(queryRunner);
 
-      throw new BadRequestException((error as Error).message || 'User not created');
+      // Handle duplicate key errors with clearer messages
+      const errorMessage = (error as Error).message || 'User not created';
+      if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
+        if (restPayload.email) {
+          const existingEmail = await this.findOneBase({ email: restPayload.email });
+          if (existingEmail) {
+            throw new BadRequestException('A user with this email already exists');
+          }
+        }
+        if (restPayload.phoneNumber) {
+          const existingPhone = await this.findOneBase({ phoneNumber: restPayload.phoneNumber });
+          if (existingPhone) {
+            throw new BadRequestException('A user with this phone number already exists');
+          }
+        }
+        throw new BadRequestException('A user with this email or phone number already exists');
+      }
+      throw new BadRequestException(errorMessage);
     }
 
     if (!createdUser) {
