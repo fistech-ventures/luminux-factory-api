@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base/base.service';
-import { asyncForEach, ENUM_ACL_DEFAULT_ROLES, generateStrongPassword } from '@src/shared';
+import { asyncForEach, generateStrongPassword } from '@src/shared';
 import {
   commitTransaction,
   rollbackTransaction,
@@ -78,7 +78,7 @@ export class UserService extends BaseService<User> {
     } catch (error) {
       await rollbackTransaction(queryRunner);
 
-      throw new BadRequestException(error.message || 'User not created');
+      throw new BadRequestException((error as Error).message || 'User not created');
     }
 
     if (!createdUser) {
@@ -153,7 +153,7 @@ export class UserService extends BaseService<User> {
       await commitTransaction(queryRunner);
     } catch (error) {
       await rollbackTransaction(queryRunner);
-      throw new BadRequestException(error.message || 'User not updated');
+      throw new BadRequestException((error as Error).message || 'User not updated');
     }
 
     const updatedUser = await this.findOne({
@@ -215,7 +215,7 @@ export class UserService extends BaseService<User> {
       await commitTransaction(queryRunner);
     } catch (error) {
       await rollbackTransaction(queryRunner);
-      throw new BadRequestException(error.message || 'User not updated');
+      throw new BadRequestException((error as Error).message || 'User not updated');
     }
 
     const updatedUser = await this.findOne({ where: { id: id }, relations });
@@ -224,10 +224,6 @@ export class UserService extends BaseService<User> {
 
   async findOrCreateByPhoneNumber(phoneNumber: string, name: string, authUser?: IAuthUser): Promise<User> {
     const isExist = await this.findOneBase({ phoneNumber });
-
-    const role = await this.roleService.findOneBase({
-      title: ENUM_ACL_DEFAULT_ROLES.CUSTOMER,
-    });
 
     if (isExist) {
       // console.warn("User exists with phone number:", phoneNumber);
@@ -244,10 +240,7 @@ export class UserService extends BaseService<User> {
         createdBy: authUser
       });
 
-      await this.userRoleService.createOneBase({
-        userId: user.id,
-        roleId: role.id,
-      });
+      // Don't auto-assign customer role - roles should be explicitly assigned
       return user;
     }
   }

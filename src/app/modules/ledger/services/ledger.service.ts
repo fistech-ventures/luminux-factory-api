@@ -109,11 +109,12 @@ export class LedgerService extends BaseService<Ledger> {
       }
     });
 
-    // For customers: balance = what they owe us (due) - what they've paid us
+    // For customers: negative balance = they owe us, positive = we owe them
+    // Balance = credit (paid) - debit (due)
     return {
       totalDue,
       totalPaid,
-      balance: totalDue - totalPaid,
+      balance: totalPaid - totalDue,
     };
   }
 
@@ -135,7 +136,8 @@ export class LedgerService extends BaseService<Ledger> {
       }
     });
 
-    // For suppliers: balance = what we owe them (due) - what we've paid them
+    // For suppliers: positive balance = we owe them, negative = they owe us
+    // Balance = credit (due) - debit (paid) = what we owe them
     return {
       totalDue,
       totalPaid,
@@ -176,13 +178,20 @@ export class LedgerService extends BaseService<Ledger> {
       });
 
       openingEntries.forEach((entry) => {
-        // Balance = due - paid for both customers and suppliers
-        // For customers: positive balance means they owe us
-        // For suppliers: positive balance means we owe them
-        if (entry.type === 'due') {
-          openingBalance += entry.amount;
-        } else if (entry.type === 'paid') {
-          openingBalance -= entry.amount;
+        // For customers: negative balance = they owe us, positive = we owe them
+        // For suppliers: positive balance = we owe them, negative = they owe us
+        if (entityType === 'customer') {
+          if (entry.type === 'due') {
+            openingBalance -= entry.amount; // They owe us more (debit)
+          } else if (entry.type === 'paid') {
+            openingBalance += entry.amount; // They paid us (credit)
+          }
+        } else {
+          if (entry.type === 'due') {
+            openingBalance += entry.amount; // We owe them more (credit)
+          } else if (entry.type === 'paid') {
+            openingBalance -= entry.amount; // We paid them (debit)
+          }
         }
       });
     }
@@ -259,9 +268,22 @@ export class LedgerService extends BaseService<Ledger> {
       const isDue = entry.type === 'due';
       const isPaid = entry.type === 'paid';
       
-      const credit = isDue ? entry.amount : 0;
-      const debit = isPaid ? entry.amount : 0;
+      // For customers (receivables): due = debit, paid = credit
+      // For suppliers (payables): due = credit, paid = debit
+      let debit = 0;
+      let credit = 0;
+      
+      if (entityType === 'customer') {
+        debit = isDue ? entry.amount : 0;
+        credit = isPaid ? entry.amount : 0;
+      } else {
+        credit = isDue ? entry.amount : 0;
+        debit = isPaid ? entry.amount : 0;
+      }
 
+      // For customers: negative balance = they owe us, positive = we owe them
+      // For suppliers: positive balance = we owe them, negative = they owe us
+      // Balance = credit - debit
       runningBalance += credit - debit;
 
       const resolvedSale = entry.referenceType === 'sale' ? sales.get(entry.referenceId) : null;
