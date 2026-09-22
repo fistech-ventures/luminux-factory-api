@@ -4,6 +4,7 @@ import { BaseService } from '@src/app/base/base.service';
 import { SuccessResponse } from '@src/app/types';
 import {
   Between,
+  EntityManager,
   FindOptionsWhere,
   In,
   LessThan,
@@ -46,6 +47,33 @@ export class LedgerService extends BaseService<Ledger> {
   async updateLedger(id: string, payload: UpdateLedgerDTO): Promise<Ledger> {
     await this.isExist({ id: id as any });
     return this.updateOneBase(id, payload as any);
+  }
+
+  /**
+   * Upserts (or removes) one ledger entry so it matches the desired state.
+   *
+   * Transaction services call this on every update - not only when an amount
+   * changed - so the ledger is self-healing: an entry that drifted out of sync
+   * on an earlier edit is corrected the next time the transaction is saved.
+   */
+  async reconcileLedgerEntry(
+    manager: EntityManager,
+    existing: Ledger | undefined,
+    shouldExist: boolean,
+    values: Partial<Ledger>,
+  ): Promise<void> {
+    if (!shouldExist) {
+      if (existing) {
+        await manager.delete(Ledger, { id: existing.id });
+      }
+      return;
+    }
+
+    if (existing) {
+      await manager.update(Ledger, { id: existing.id }, values);
+    } else {
+      await manager.save(manager.create(Ledger, values));
+    }
   }
 
   async findAllWithFilters(filters: FilterLedgerDTO): Promise<SuccessResponse<Ledger[]>> {

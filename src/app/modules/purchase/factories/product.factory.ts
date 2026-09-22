@@ -7,6 +7,7 @@ export class ProductFactory {
     sourcingPrice: number,
     sellingPrice: number,
     stock: number,
+    unit?: string,
   ): Product {
     const product = new Product();
     product.productCode = productCode;
@@ -14,6 +15,7 @@ export class ProductFactory {
     product.sourcingPrice = sourcingPrice;
     product.sellingPrice = sellingPrice;
     product.stock = stock;
+    product.unit = unit;
     return product;
   }
 }

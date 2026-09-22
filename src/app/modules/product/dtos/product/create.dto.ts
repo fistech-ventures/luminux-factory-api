@@ -81,6 +81,12 @@ export class ProductCreateDTO {
   @IsNumber()
   readonly stock?: number;
 
+  @ApiProperty({ type: String, required: false, example: 'kg' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  readonly unit?: string;
+
   @ApiProperty({ type: [ProductVariantOptionDTO], required: false })
   @IsOptional()
   @IsArray()

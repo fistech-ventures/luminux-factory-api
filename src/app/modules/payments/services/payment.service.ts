@@ -23,6 +23,7 @@ import { Purchase } from '../../purchase/entities/purchase.entity';
 import { Customer } from '../../customer/entities/customer.entity';
 import { Supplier } from '../../supplier/entities/supplier.entity';
 import { LedgerService } from '../../ledger/services/ledger.service';
+import { Ledger } from '../../ledger/entities/ledger.entity';
 
 export interface IPaymentWithDetails extends Payment {
   party?: Customer | Supplier | null;
@@ -125,8 +126,97 @@ export class PaymentService extends BaseService<Payment> {
   }
 
   async updatePayment(id: string, payload: UpdatePaymentDTO): Promise<Payment> {
-    await this.isExist({ id: id as any });
-    return this.updateOneBase(id, payload as any);
+    const existingPayment = await this.findOne({
+      where: { id: id as any },
+    });
+
+    if (!existingPayment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    const { amount, ...restPayload } = payload;
+    const newAmount = amount ?? existingPayment.amount;
+    const amountDiff = newAmount - existingPayment.amount;
+    const newEntityType = payload.entityType ?? existingPayment.entityType;
+    const newEntityId = payload.entityId ?? existingPayment.entityId;
+    const newPaymentDate = payload.paymentDate ?? existingPayment.paymentDate;
+    const newNote = payload.note !== undefined ? payload.note : existingPayment.note;
+
+    const queryRunner = await startTransaction(this.dataSource);
+
+    try {
+      // Persist the payment itself, including the (possibly changed) amount.
+      await queryRunner.manager.update(Payment, { id }, { ...restPayload, amount: newAmount });
+
+      // Keep the payment's ledger entry in sync with the payment record.
+      const existingLedgerEntry = await queryRunner.manager.findOne(Ledger, {
+        where: {
+          referenceId: id,
+          referenceType: 'payment',
+        },
+      });
+
+      const description = newNote
+        ? `${newEntityType === 'customer' ? 'Payment received from customer' : 'Payment made to supplier'} - ${newNote}`
+        : newEntityType === 'customer'
+          ? 'Payment received from customer'
+          : 'Payment made to supplier';
+
+      // Upsert (or drop) the entry so it matches the payment record, including
+      // a changed amount / party / date. A zero or negative amount drops it.
+      await this.ledgerService.reconcileLedgerEntry(
+        queryRunner.manager,
+        existingLedgerEntry ?? undefined,
+        newAmount > 0,
+        {
+          entityType: newEntityType,
+          entityId: newEntityId,
+          type: 'paid',
+          amount: newAmount,
+          referenceId: id,
+          referenceType: 'payment',
+          description,
+          transactionDate: newPaymentDate,
+        },
+      );
+
+      // Adjust the linked sale/purchase by the amount delta so their
+      // paid/due totals stay consistent with the payment records.
+      if (amountDiff !== 0 && existingPayment.referenceId) {
+        if (existingPayment.referenceType === 'sale') {
+          const sale = await queryRunner.manager.findOne(Sale, {
+            where: { id: existingPayment.referenceId },
+          });
+          if (sale) {
+            const newPaidAmount = (sale.paidAmount || 0) + amountDiff;
+            await queryRunner.manager.update(Sale, { id: sale.id }, {
+              paidAmount: newPaidAmount,
+              dueAmount: Math.max(0, (sale.grandTotal || 0) - newPaidAmount),
+            });
+          }
+        } else if (existingPayment.referenceType === 'purchase') {
+          const purchase = await queryRunner.manager.findOne(Purchase, {
+            where: { id: existingPayment.referenceId },
+          });
+          if (purchase) {
+            const newPaidAmount = (purchase.paidAmount || 0) + amountDiff;
+            await queryRunner.manager.update(Purchase, { id: purchase.id }, {
+              paidAmount: newPaidAmount,
+              dueAmount: Math.max(0, (purchase.totalPurchaseAmount || 0) - newPaidAmount),
+            });
+          }
+        }
+      }
+
+      await commitTransaction(queryRunner);
+
+      return await this.findOne({
+        where: { id },
+      });
+    } catch (error) {
+      await rollbackTransaction(queryRunner);
+      throw new BadRequestException((error as Error).message || 'Payment not updated');
+    }
   }
 
   /**

@@ -33,6 +33,9 @@ export class Product extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
   saleQuantity?: number;
 
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 50, nullable: true })
+  unit?: string;
+
   // Weighted average of the per-unit selling price across B2B / B2C sales.
   // Auto-calculated by the sales module on every sale; not user editable.
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })

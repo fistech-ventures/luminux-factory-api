@@ -25,12 +25,14 @@ import { UpdateSaleDTO } from '../dtos/update.dto';
 import { FilterSaleDTO } from '../dtos/filter.dto';
 import { Sale } from '../entities/sale.entity';
 import { SaleItem } from '../entities/sale-item.entity';
+import { Payment } from '../../payments/entities/payment.entity';
 import { Customer } from '../../customer/entities/customer.entity';
 import { Product } from '../../product/entities/product.entity';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
 import { ProductService } from '../../product/services/product.service';
 import { ProductVariantOptionService } from '../../product/services/productVariantOption.service';
 import { LedgerService } from '../../ledger/services/ledger.service';
+import { Ledger } from '../../ledger/entities/ledger.entity';
 import { InvoiceService } from './invoice.service';
 
 @Injectable()
@@ -208,8 +210,137 @@ export class SaleService extends BaseService<Sale> {
   }
 
   async updateSale(id: string, payload: UpdateSaleDTO): Promise<Sale> {
-    await this.isExist({ id: id as any });
-    return this.updateOneBase(id, payload as any);
+    const existingSale = await this.findOne({
+      where: { id: id as any },
+      relations: ['items'],
+    });
+
+    if (!existingSale) {
+      throw new NotFoundException('Sale not found');
+    }
+
+    const queryRunner = await startTransaction(this.dataSource);
+
+    try {
+      const { items, paidAmount, ...restPayload } = payload;
+      let newSubtotal = existingSale.totalAmount;
+      let newGrandTotal = existingSale.grandTotal;
+      let newPaidAmount = existingSale.paidAmount;
+      let newDueAmount = existingSale.dueAmount;
+      const ledgerDate = restPayload.date ?? existingSale.date;
+
+      // Recalculate totals if items are provided
+      if (items && items.length > 0) {
+        newSubtotal = items.reduce(
+          (sum, item) => sum + item.sellingPrice * item.quantity,
+          0,
+        );
+        const discount = payload.discount ?? existingSale.discount;
+        newGrandTotal = newSubtotal - discount;
+        newPaidAmount = paidAmount ?? existingSale.paidAmount;
+        newDueAmount = newGrandTotal - newPaidAmount;
+      } else if (paidAmount !== undefined || payload.discount !== undefined) {
+        // No line-item change: only the discount and/or paid amount can move.
+        const discount = payload.discount ?? existingSale.discount;
+        newGrandTotal = existingSale.totalAmount - discount;
+        newPaidAmount = paidAmount ?? existingSale.paidAmount;
+        newDueAmount = newGrandTotal - newPaidAmount;
+      }
+
+      // Update the sale
+      const updateData: any = { ...restPayload };
+      if (items && items.length > 0) {
+        updateData.totalAmount = newSubtotal;
+        updateData.grandTotal = newGrandTotal;
+        updateData.paidAmount = newPaidAmount;
+        updateData.dueAmount = newDueAmount;
+      } else if (paidAmount !== undefined || payload.discount !== undefined) {
+        if (payload.discount !== undefined) {
+          updateData.discount = payload.discount;
+          updateData.grandTotal = newGrandTotal;
+        }
+        if (paidAmount !== undefined) {
+          updateData.paidAmount = newPaidAmount;
+        }
+        updateData.dueAmount = newDueAmount;
+      }
+
+      await queryRunner.manager.update(Sale, { id }, updateData);
+
+      // Reconcile the ledger with the sale's final state. This runs on every
+      // update - not just when an amount changed - so an entry that already
+      // drifted out of sync on an earlier edit is repaired, not preserved.
+      const existingLedgerEntries = await queryRunner.manager.find(Ledger, {
+        where: {
+          referenceId: id,
+          referenceType: 'sale',
+        },
+      });
+
+      const dueEntry = existingLedgerEntries.find(e => e.type === 'due');
+      const paidEntry = existingLedgerEntries.find(e => e.type === 'paid');
+
+      // Payments recorded separately against this sale already exist as their
+      // own ledger entries (referenceType 'payment') and are rolled into the
+      // sale's paidAmount, so subtract them: the sale's own 'paid' entry only
+      // carries what was paid at the time of sale. Otherwise the same money is
+      // credited to the customer twice.
+      const linkedPayments = await queryRunner.manager.find(Payment, {
+        where: { referenceId: id, referenceType: 'sale' },
+      });
+      const separatelyPaidTotal = linkedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const atSalePaidAmount = newPaidAmount - separatelyPaidTotal;
+
+      const ledgerParty = {
+        entityType: 'customer',
+        entityId: payload.customerId ?? existingSale.customerId,
+      };
+
+      // The 'due' entry is the invoice debit, so it always carries the full
+      // (gross) invoice amount - only the balance (paid - due) says what is
+      // still owed. It is kept once it exists: deleting it when separate
+      // payments settle the sale would unbalance the credits and flip the
+      // customer into a false "overpaid" balance.
+      await this.ledgerService.reconcileLedgerEntry(
+        queryRunner.manager,
+        dueEntry,
+        Boolean(dueEntry) || newDueAmount > 0,
+        {
+          ...ledgerParty,
+          type: 'due',
+          amount: newGrandTotal,
+          referenceId: id,
+          referenceType: 'sale',
+          description: `Sale to customer - Due amount`,
+          transactionDate: ledgerDate,
+        },
+      );
+
+      await this.ledgerService.reconcileLedgerEntry(
+        queryRunner.manager,
+        paidEntry,
+        atSalePaidAmount > 0,
+        {
+          ...ledgerParty,
+          type: 'paid',
+          amount: atSalePaidAmount,
+          referenceId: id,
+          referenceType: 'sale',
+          description: 'Payment received at time of sale',
+          transactionDate: ledgerDate,
+        },
+      );
+
+      await commitTransaction(queryRunner);
+
+      return await this.findOne({
+        where: { id },
+        relations: SALE_DETAIL_RELATIONS,
+      });
+    } catch (error) {
+      await rollbackTransaction(queryRunner);
+      throw new BadRequestException((error as Error).message || 'Sale not updated');
+    }
   }
 
   async findAllWithFilters(filters: FilterSaleDTO): Promise<SuccessResponse<Sale[]>> {
@@ -257,6 +388,7 @@ export class SaleService extends BaseService<Sale> {
    *   consumed (product level stock is reduced as well since it mirrors the
    *   sum of its variant stocks).
    * - Otherwise the product's own stock is consumed.
+   * - Stock can go negative (backorders allowed) - no stock validation.
    */
   private async resolveSaleItem(
     item: SaleItemDTO,
@@ -278,16 +410,13 @@ export class SaleService extends BaseService<Sale> {
       }
 
       const availableStock = variant.stockQuantity || 0;
-      if (availableStock < item.quantity) {
-        throw new BadRequestException(`Insufficient stock for product variant: ${product.title}`);
-      }
 
       const unitPrice = item.sellingPrice;
       if (!unitPrice || unitPrice < 0) {
         throw new BadRequestException(`Invalid selling price for product: ${product.title}`);
       }
 
-      // Consume variant level stock and track sold quantity
+      // Consume variant level stock and track sold quantity (allow negative stock)
       await manager.update(
         ProductVariantOption,
         { id: variant.id },
@@ -297,12 +426,12 @@ export class SaleService extends BaseService<Sale> {
         },
       );
 
-      // Keep product level stock in sync (it equals the sum of variant stocks)
+      // Keep product level stock in sync (allow negative stock)
       await manager.update(
         Product,
         { id: product.id },
         {
-          stock: Math.max(0, (product.stock || 0) - item.quantity),
+          stock: (product.stock || 0) - item.quantity,
           saleQuantity: (product.saleQuantity || 0) + item.quantity,
         },
       );
@@ -311,16 +440,13 @@ export class SaleService extends BaseService<Sale> {
     }
 
     const availableStock = product.stock || 0;
-    if (availableStock < item.quantity) {
-      throw new BadRequestException(`Insufficient stock for product: ${product.title}`);
-    }
 
     const unitPrice = item.sellingPrice;
     if (!unitPrice || unitPrice < 0) {
       throw new BadRequestException(`Invalid selling price for product: ${product.title}`);
     }
 
-    // Consume product level stock and track sold quantity
+    // Consume product level stock and track sold quantity (allow negative stock)
     await manager.update(
       Product,
       { id: product.id },

@@ -59,4 +59,15 @@ export class PurchaseItemDTO {
   @IsNotEmpty()
   @IsNumber()
   otherCost: number;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    description: 'Product unit (kg, pcs, meter, etc.)',
+    example: 'kg',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  unit?: string;
 }

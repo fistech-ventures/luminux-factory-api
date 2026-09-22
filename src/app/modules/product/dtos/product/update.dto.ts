@@ -91,6 +91,12 @@ export class ProductUpdateDTO {
   @IsNumber()
   readonly stock?: number;
 
+  @ApiProperty({ type: String, required: false, example: 'kg' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  readonly unit?: string;
+
   @ApiProperty({ type: [ProductVariantOptionUpdateDTO], required: false })
   @IsOptional()
   @IsArray()
