@@ -8,8 +8,10 @@ import { Purchase } from '../purchase/entities/purchase.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Customer } from '../customer/entities/customer.entity';
 import { Supplier } from '../supplier/entities/supplier.entity';
+import { Expense } from '../expense/entities/expense.entity';
+import { Employee } from '../employee/entities/employee.entity';
 
-const entities = [Ledger, Sale, Purchase, Payment, Customer, Supplier];
+const entities = [Ledger, Sale, Purchase, Payment, Customer, Supplier, Expense, Employee];
 const services = [LedgerService];
 const subscribers = [];
 const webControllers = [];

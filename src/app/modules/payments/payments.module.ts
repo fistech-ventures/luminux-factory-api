@@ -7,6 +7,7 @@ import { SalesModule } from '../sales/sales.module';
 import { PurchaseModule } from '../purchase/purchase.module';
 import { CustomerModule } from '../customer/customer.module';
 import { SupplierModule } from '../supplier/supplier.module';
+import { EmployeeModule } from '../employee/employee.module';
 
 const entities = [Payment];
 const services = [PaymentService];
@@ -21,6 +22,7 @@ const internalControllers = [PaymentInternalController];
     PurchaseModule,
     CustomerModule,
     SupplierModule,
+    EmployeeModule,
   ],
   providers: [...services, ...subscribers],
   exports: [...services, ...subscribers, TypeOrmModule],

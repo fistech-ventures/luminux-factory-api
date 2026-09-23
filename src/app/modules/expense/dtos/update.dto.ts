@@ -40,6 +40,14 @@ export class UpdateExpenseDTO {
   @ApiProperty({
     type: String,
     required: false,
+    example: 'employee-uuid',
+  })
+  @IsOptional()
+  employeeId?: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
     example: 'Nahid',
   })
   @IsOptional()

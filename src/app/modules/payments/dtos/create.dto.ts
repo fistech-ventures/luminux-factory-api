@@ -20,15 +20,16 @@ export class CreatePaymentDTO {
   @ApiProperty({
     type: String,
     required: true,
-    enum: ['customer', 'supplier'],
+    enum: ['customer', 'supplier', 'employee'],
     example: 'customer',
-    description: 'customer => collection from customer, supplier => payment to supplier',
+    description:
+      'customer => collection from customer, supplier => payment to supplier, employee => advance/expense money given to an employee',
   })
   @IsNotEmpty()
-  @IsIn(['customer', 'supplier'])
-  entityType: 'customer' | 'supplier';
+  @IsIn(['customer', 'supplier', 'employee'])
+  entityType: 'customer' | 'supplier' | 'employee';
 
-  @ApiProperty({ type: String, required: true, example: 'customer or supplier uuid' })
+  @ApiProperty({ type: String, required: true, example: 'customer / supplier / employee uuid' })
   @IsNotEmpty()
   @IsString()
   entityId: string;

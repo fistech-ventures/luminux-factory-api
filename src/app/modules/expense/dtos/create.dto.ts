@@ -44,12 +44,24 @@ export class CreateExpenseDTO {
 
   @ApiProperty({
     type: String,
-    required: true,
-    example: 'John Doe',
+    required: false,
+    example: 'employee-uuid',
+    description: 'Employee who spent the money out of their advance. Auto-fills spentBy.',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  spentBy: string;
+  employeeId?: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: 'John Doe',
+    description: 'Free-text name. When employeeId is given this is filled automatically.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  spentBy?: string;
 
   @IsOptional()
   readonly createdBy?: any;

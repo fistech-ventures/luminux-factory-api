@@ -28,6 +28,7 @@ export enum ENUM_TABLE_NAMES {
   // Sales module tables
   CUSTOMERS = 'customers',
   SUPPLIERS = 'suppliers',
+  EMPLOYEES = 'employees',
   EXPENSES = 'expenses',
   PURCHASES = 'purchases',
   PURCHASE_ITEMS = 'purchase_items',

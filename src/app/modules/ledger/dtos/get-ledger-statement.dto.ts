@@ -5,13 +5,13 @@ export class GetLedgerStatementDTO {
   @ApiProperty({
     type: String,
     required: true,
-    enum: ['customer', 'supplier'],
+    enum: ['customer', 'supplier', 'employee'],
     example: 'customer',
   })
   @IsNotEmpty()
   @IsString()
-  @IsIn(['customer', 'supplier'])
-  entityType: 'customer' | 'supplier';
+  @IsIn(['customer', 'supplier', 'employee'])
+  entityType: 'customer' | 'supplier' | 'employee';
 
   @ApiProperty({
     type: String,

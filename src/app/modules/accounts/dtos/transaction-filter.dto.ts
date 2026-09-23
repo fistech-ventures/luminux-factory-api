@@ -19,7 +19,7 @@ export class AccountTransactionFilterDTO {
     required: false,
     enum: ENUM_TRANSACTION_TYPES,
     example: ENUM_TRANSACTION_TYPES.CASH_IN,
-    description: 'cashIn => money coming in (sales, collections), cashOut => money going out (purchases, expenses, supplier payments)',
+    description: 'cashIn => money coming in (sales, collections), cashOut => money going out (purchases, expenses, supplier payments, employee advances)',
   })
   @IsOptional()
   @IsEnum(ENUM_TRANSACTION_TYPES)

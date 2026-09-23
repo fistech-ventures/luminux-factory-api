@@ -7,6 +7,7 @@ import { ExpenseModule } from '../expense/expense.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { CustomerModule } from '../customer/customer.module';
 import { SupplierModule } from '../supplier/supplier.module';
+import { EmployeeModule } from '../employee/employee.module';
 
 const services = [AccountsService];
 const subscribers = [];
@@ -21,6 +22,7 @@ const internalControllers = [AccountsInternalController];
     PaymentsModule,
     CustomerModule,
     SupplierModule,
+    EmployeeModule,
   ],
   providers: [...services, ...subscribers],
   exports: [...services, ...subscribers],

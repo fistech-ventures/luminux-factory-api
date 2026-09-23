@@ -15,6 +15,7 @@ import { Expense } from '../../expense/entities/expense.entity';
 import { Payment } from '../../payments/entities/payment.entity';
 import { Customer } from '../../customer/entities/customer.entity';
 import { Supplier } from '../../supplier/entities/supplier.entity';
+import { Employee } from '../../employee/entities/employee.entity';
 import { AccountTransactionFilterDTO } from '../dtos/transaction-filter.dto';
 
 export interface IAccountBalance {
@@ -42,7 +43,7 @@ export interface IAccountTransaction {
   linkedReferenceType?: string;
   linkedReferenceId?: string;
   // Resolved details attached to the response.
-  party?: Customer | Supplier | null;
+  party?: Customer | Supplier | Employee | null;
   reference?: Sale | Purchase | Expense | null;
 }
 
@@ -71,6 +72,8 @@ export class AccountsService {
     private readonly customerRepo: Repository<Customer>,
     @InjectRepository(Supplier)
     private readonly supplierRepo: Repository<Supplier>,
+    @InjectRepository(Employee)
+    private readonly employeeRepo: Repository<Employee>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -81,8 +84,12 @@ export class AccountsService {
    *   + sales.paidAmount        (customer paid at sale time)
    *   + payments to customers   (later collections)
    *   - purchases.paidAmount    (paid to supplier at purchase time)
-   *   - expenses.amountSpent    (expenses)
+   *   - expenses.amountSpent    (company expenses only, not employee advances)
    *   - payments to suppliers   (later payments)
+   *   - payments to employees   (advances handed to employees)
+   *
+   * Employee expenses never hit these balances: the cash already left the
+   * company when the advance was paid, and is tracked on the employee ledger.
    *
    * totalBalance is the sum of every payment method balance.
    */
@@ -90,7 +97,7 @@ export class AccountsService {
     const [sales, purchases, expenses, payments] = await Promise.all([
       this.sumByPaymentMethod(this.saleRepo, 'paidAmount'),
       this.sumByPaymentMethod(this.purchaseRepo, 'paidAmount'),
-      this.sumByPaymentMethod(this.expenseRepo, 'amountSpent'),
+      this.sumByPaymentMethod(this.expenseRepo, 'amountSpent', 'e."employeeId" IS NULL'),
       this.dataSource.query(
         `SELECT p."paymentMethod" AS "paymentMethod", p."entityType" AS "entityType", SUM(p."amount") AS "amount"
          FROM "payments" p
@@ -124,7 +131,7 @@ export class AccountsService {
     });
 
     payments
-      .filter((row) => row.entityType === 'supplier')
+      .filter((row) => row.entityType === 'supplier' || row.entityType === 'employee')
       .forEach((row) => {
         balances[row.paymentMethod] -= Number(row.amount) || 0;
       });
@@ -215,6 +222,7 @@ export class AccountsService {
         NULL AS "linkedReferenceId"
       FROM "expenses" e
       WHERE e."isActive" = true
+        AND e."employeeId" IS NULL
         AND ($1::text IS NULL OR e."paymentMethod" = $1)
         AND ($2::date IS NULL OR e."date" >= $2)
         AND ($3::date IS NULL OR e."date" <= $3)
@@ -230,6 +238,8 @@ export class AccountsService {
         COALESCE(pay."note",
           CASE WHEN pay."entityType" = 'customer'
             THEN 'Collection from customer'
+            WHEN pay."entityType" = 'employee'
+            THEN 'Advance to employee'
             ELSE 'Payment to supplier' END),
         pay."entityType" AS "entityType",
         pay."entityId"::text AS "entityId",
@@ -299,7 +309,7 @@ export class AccountsService {
     }
 
     const [parties, sales, purchases, expenses] = await Promise.all([
-      loadParties(transactions, this.customerRepo, this.supplierRepo),
+      loadParties(transactions, this.customerRepo, this.supplierRepo, this.employeeRepo),
       loadSales(saleIds, this.saleRepo),
       loadPurchases(purchaseIds, this.purchaseRepo),
       loadExpenses(expenseIds, this.expenseRepo),
@@ -343,12 +353,13 @@ export class AccountsService {
   private async sumByPaymentMethod(
     repo: Repository<Sale | Purchase | Expense>,
     amountColumn: string,
+    extraWhere?: string,
   ): Promise<Array<{ paymentMethod: string; amount: string }>> {
     const table = repo.metadata.tableName;
     return this.dataSource.query(
       `SELECT e."paymentMethod" AS "paymentMethod", SUM(e."${amountColumn}") AS "amount"
        FROM "${table}" e
-       WHERE e."isActive" = true
+       WHERE e."isActive" = true${extraWhere ? ` AND ${extraWhere}` : ''}
        GROUP BY e."paymentMethod"`,
     );
   }

@@ -12,7 +12,7 @@ import {
   MoreThanOrEqual,
   Repository,
 } from 'typeorm';
-import { loadPurchases, loadSales } from '@src/app/helpers/transaction-details.helper';
+import { loadExpenses, loadPurchases, loadSales } from '@src/app/helpers/transaction-details.helper';
 import { CreateLedgerDTO, UpdateLedgerDTO, FilterLedgerDTO } from '../dtos/ledger.dto';
 import { Ledger } from '../entities/ledger.entity';
 import { Customer } from '../../customer/entities/customer.entity';
@@ -20,6 +20,10 @@ import { Supplier } from '../../supplier/entities/supplier.entity';
 import { Sale } from '../../sales/entities/sale.entity';
 import { Purchase } from '../../purchase/entities/purchase.entity';
 import { Payment } from '../../payments/entities/payment.entity';
+import { Expense } from '../../expense/entities/expense.entity';
+import { Employee } from '../../employee/entities/employee.entity';
+
+export type LedgerEntityType = 'customer' | 'supplier' | 'employee';
 
 @Injectable()
 export class LedgerService extends BaseService<Ledger> {
@@ -36,6 +40,10 @@ export class LedgerService extends BaseService<Ledger> {
     private readonly customerRepo: Repository<Customer>,
     @InjectRepository(Supplier)
     private readonly supplierRepo: Repository<Supplier>,
+    @InjectRepository(Expense)
+    private readonly expenseRepo: Repository<Expense>,
+    @InjectRepository(Employee)
+    private readonly employeeRepo: Repository<Employee>,
   ) {
     super(_repo);
   }
@@ -173,24 +181,57 @@ export class LedgerService extends BaseService<Ledger> {
     };
   }
 
+  /**
+   * Employee balance = money spent - advances received.
+   *
+   * Advances are debited to the employee and expenses are credited, so a
+   * negative balance means the employee still holds company money (they must
+   * return it / account for it), while a positive balance means the company
+   * owes the employee a reimbursement for out-of-pocket spending.
+   */
+  async getEmployeeBalance(
+    employeeId: string,
+  ): Promise<{ totalAdvance: number; totalExpense: number; balance: number }> {
+    const entries = await this.find({
+      where: { entityType: 'employee', entityId: employeeId },
+    });
+
+    let totalAdvance = 0;
+    let totalExpense = 0;
+
+    entries.forEach((entry) => {
+      if (entry.type === 'advance') {
+        totalAdvance += entry.amount;
+      } else if (entry.type === 'expense') {
+        totalExpense += entry.amount;
+      }
+    });
+
+    return {
+      totalAdvance,
+      totalExpense,
+      balance: totalExpense - totalAdvance,
+    };
+  }
+
   async getStatement(query: {
-    entityType: 'customer' | 'supplier';
+    entityType: LedgerEntityType;
     entityId: string;
     startDate?: string;
     endDate?: string;
   }): Promise<any> {
     const { entityType, entityId, startDate, endDate } = query;
 
-    // 1. Load the party (customer or supplier) — 404 if not found.
+    // 1. Load the party (customer / supplier / employee) — 404 if not found.
     const party =
       entityType === 'customer'
         ? await this.customerRepo.findOne({ where: { id: entityId } })
-        : await this.supplierRepo.findOne({ where: { id: entityId } });
+        : entityType === 'supplier'
+          ? await this.supplierRepo.findOne({ where: { id: entityId } })
+          : await this.employeeRepo.findOne({ where: { id: entityId } });
 
     if (!party) {
-      throw new NotFoundException(
-        `${entityType === 'customer' ? 'Customer' : 'Supplier'} not found: ${entityId}`,
-      );
+      throw new NotFoundException(`${entityType} not found: ${entityId}`);
     }
 
     // 2. Compute opening balance from entries before startDate (if given).
@@ -208,11 +249,18 @@ export class LedgerService extends BaseService<Ledger> {
       openingEntries.forEach((entry) => {
         // For customers: negative balance = they owe us, positive = we owe them
         // For suppliers: positive balance = we owe them, negative = they owe us
+        // For employees: negative = employee owes us, positive = we owe them
         if (entityType === 'customer') {
           if (entry.type === 'due') {
             openingBalance -= entry.amount; // They owe us more (debit)
           } else if (entry.type === 'paid') {
             openingBalance += entry.amount; // They paid us (credit)
+          }
+        } else if (entityType === 'employee') {
+          if (entry.type === 'advance') {
+            openingBalance -= entry.amount; // Advance given (debit)
+          } else if (entry.type === 'expense') {
+            openingBalance += entry.amount; // Money spent (credit)
           }
         } else {
           if (entry.type === 'due') {
@@ -255,6 +303,7 @@ export class LedgerService extends BaseService<Ledger> {
     const saleIds = new Set<string>();
     const purchaseIds = new Set<string>();
     const paymentIds = new Set<string>();
+    const expenseIds = new Set<string>();
 
     for (const entry of entries) {
       if (!entry.referenceId) continue;
@@ -264,6 +313,8 @@ export class LedgerService extends BaseService<Ledger> {
         purchaseIds.add(entry.referenceId);
       } else if (entry.referenceType === 'payment') {
         paymentIds.add(entry.referenceId);
+      } else if (entry.referenceType === 'expense') {
+        expenseIds.add(entry.referenceId);
       }
     }
 
@@ -273,6 +324,7 @@ export class LedgerService extends BaseService<Ledger> {
       where: { id: In(Array.from(paymentIds)) },
     });
     const paymentMap = new Map<string, Payment>(payments.map((p) => [p.id, p]));
+    const expenses = await loadExpenses(Array.from(expenseIds), this.expenseRepo);
 
     // 5. Build statement rows - process each ledger entry individually
     const rows: Array<{
@@ -295,13 +347,21 @@ export class LedgerService extends BaseService<Ledger> {
     for (const entry of entries) {
       const isDue = entry.type === 'due';
       const isPaid = entry.type === 'paid';
-      
+      const isEmployee = entityType === 'employee';
+
       // For customers (receivables): due = debit, paid = credit
       // For suppliers (payables): due = credit, paid = debit
+      // For employees: advance = debit, expense = credit
+      //   balance = credit - debit = expenses - advances
+      //   negative => employee owes the company (unspent advance)
+      //   positive => company owes the employee (reimburse out of pocket)
       let debit = 0;
       let credit = 0;
-      
-      if (entityType === 'customer') {
+
+      if (isEmployee) {
+        debit = entry.type === 'advance' ? entry.amount : 0;
+        credit = entry.type === 'expense' ? entry.amount : 0;
+      } else if (entityType === 'customer') {
         debit = isDue ? entry.amount : 0;
         credit = isPaid ? entry.amount : 0;
       } else {
@@ -311,6 +371,7 @@ export class LedgerService extends BaseService<Ledger> {
 
       // For customers: negative balance = they owe us, positive = we owe them
       // For suppliers: positive balance = we owe them, negative = they owe us
+      // For employees: negative = employee owes us, positive = we owe them
       // Balance = credit - debit
       runningBalance += credit - debit;
 
@@ -319,6 +380,8 @@ export class LedgerService extends BaseService<Ledger> {
         entry.referenceType === 'purchase' ? purchases.get(entry.referenceId) : null;
       const resolvedPayment =
         entry.referenceType === 'payment' ? paymentMap.get(entry.referenceId) : null;
+      const resolvedExpense =
+        entry.referenceType === 'expense' ? expenses.get(entry.referenceId) : null;
 
       // invoiceNo
       const invoiceNo = (() => {
@@ -354,6 +417,10 @@ export class LedgerService extends BaseService<Ledger> {
 
       // particulars: payment method
       const particulars: string | null = (() => {
+        if (isEmployee) {
+          if (entry.type === 'advance') return resolvedPayment?.paymentMethod || null;
+          return resolvedExpense?.paymentMethod || null;
+        }
         if (isDue) {
           if (resolvedSale?.paymentMethod) return resolvedSale.paymentMethod;
           if (resolvedPurchase && 'paymentMethod' in resolvedPurchase && resolvedPurchase.paymentMethod) {
@@ -372,6 +439,15 @@ export class LedgerService extends BaseService<Ledger> {
 
       // narration
       const narration: string = (() => {
+        if (isEmployee) {
+          if (entry.type === 'advance') {
+            const note = resolvedPayment?.note || '';
+            return note ? `Advance given — ${note}` : 'Advance given to employee';
+          }
+          return resolvedExpense?.purpose
+            ? `Expense - ${resolvedExpense.purpose}`
+            : entry.description || 'Expense';
+        }
         if (isDue) {
           if (resolvedSale?.items?.length) {
             const parts = resolvedSale.items
@@ -460,18 +536,32 @@ export class LedgerService extends BaseService<Ledger> {
     const closingBalance = rows.length ? rows[rows.length - 1].balance : openingBalance;
 
     // Build the response payload matching the documented shape.
-    const partyResponse = {
-      id: party.id,
-      name:
-        (entityType === 'customer' ? (party as Customer).name : (party as Supplier).companyName) ||
-        '',
-      companyName:
-        (entityType === 'customer' ? (party as Customer).companyName : (party as Supplier).companyName) ||
-        null,
-      contactNumber: party.contactNumber || null,
-      address: party.address || null,
-      ...(entityType === 'customer' ? { customerType: (party as Customer).customerType } : {}),
-    };
+    const partyResponse =
+      entityType === 'employee'
+        ? {
+            id: party.id,
+            name: (party as Employee).name || '',
+            employeeId: (party as Employee).employeeId || null,
+            phoneNumber: (party as Employee).phoneNumber || null,
+            email: (party as Employee).email || null,
+            designation: (party as Employee).designation || null,
+          }
+        : {
+            id: party.id,
+            name:
+              (entityType === 'customer'
+                ? (party as Customer).name
+                : (party as Supplier).companyName) || '',
+            companyName:
+              (entityType === 'customer'
+                ? (party as Customer).companyName
+                : (party as Supplier).companyName) || null,
+            contactNumber: (party as Customer | Supplier).contactNumber || null,
+            address: (party as Customer | Supplier).address || null,
+            ...(entityType === 'customer'
+              ? { customerType: (party as Customer).customerType }
+              : {}),
+          };
 
     return {
       success: true,
