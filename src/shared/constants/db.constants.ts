@@ -22,6 +22,8 @@ export enum ENUM_TABLE_NAMES {
   VARIANT_OPTIONS = 'variant_options',
   PRODUCTS = 'products',
   PRODUCT_VARIANT_OPTIONS = 'product_variant_options',
+  PRODUCT_VARIANT_SKUS = 'product_variant_skus',
+  PRODUCT_VARIANT_SKU_VALUES = 'product_variant_sku_values',
 
   // Sales module tables
   CUSTOMERS = 'customers',

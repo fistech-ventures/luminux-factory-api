@@ -4,6 +4,7 @@ import { Column, Entity, Index, ManyToOne, RelationId } from 'typeorm';
 import { Sale } from './sale.entity';
 import { Product } from '../../product/entities/product.entity';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
+import { ProductVariantSku } from '../../product/entities/productVariantSku.entity';
 
 @Entity(ENUM_TABLE_NAMES.SALE_ITEMS, { orderBy: { createdAt: 'DESC' } })
 export class SaleItem extends BaseEntity {
@@ -30,6 +31,14 @@ export class SaleItem extends BaseEntity {
   @RelationId((item: SaleItem) => item.variant)
   @Column({ nullable: true })
   variantId?: string;
+
+  @ManyToOne(() => ProductVariantSku, { onDelete: 'RESTRICT', nullable: true })
+  sku?: ProductVariantSku;
+
+  @Index()
+  @RelationId((item: SaleItem) => item.sku)
+  @Column({ nullable: true })
+  skuId?: string;
 
   @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false })
   quantity?: number;

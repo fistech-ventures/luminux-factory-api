@@ -2,6 +2,7 @@ import { BaseEntity } from '@src/app/base';
 import { ENUM_COLUMN_TYPES, ENUM_TABLE_NAMES } from '@src/shared';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { ProductVariantOption } from './productVariantOption.entity';
+import { ProductVariantSku } from './productVariantSku.entity';
 
 @Entity(ENUM_TABLE_NAMES.PRODUCTS, { orderBy: { createdAt: 'DESC' } })
 export class Product extends BaseEntity {
@@ -53,4 +54,7 @@ export class Product extends BaseEntity {
 
   @OneToMany(() => ProductVariantOption, (variant) => variant.product, { cascade: true })
   variants?: ProductVariantOption[];
+
+  @OneToMany(() => ProductVariantSku, (sku) => sku.product, { cascade: true })
+  skus?: ProductVariantSku[];
 }

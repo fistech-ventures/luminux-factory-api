@@ -10,6 +10,19 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { ProductVariantSkuDTO } from './create.dto';
+
+export class ProductVariantSkuUpdateDTO extends ProductVariantSkuDTO {
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsUUID()
+  readonly id?: string;
+
+  @ApiProperty({ type: Boolean, required: false })
+  @IsOptional()
+  @IsBoolean()
+  readonly isDeleted?: boolean;
+}
 
 export class ProductVariantOptionUpdateDTO {
   @ApiProperty({ type: String, required: false, example: 'uuid' })
@@ -103,6 +116,13 @@ export class ProductUpdateDTO {
   @ValidateNested({ each: true })
   @Type(() => ProductVariantOptionUpdateDTO)
   readonly variants?: ProductVariantOptionUpdateDTO[];
+
+  @ApiProperty({ type: [ProductVariantSkuUpdateDTO], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantSkuUpdateDTO)
+  readonly skus?: ProductVariantSkuUpdateDTO[];
 
   @IsOptional()
   readonly updatedBy?: any;

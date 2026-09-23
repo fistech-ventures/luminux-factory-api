@@ -5,6 +5,8 @@ import { ProductVariantOptionInternalController } from './controllers/internal/p
 import { VariantInternalController } from './controllers/internal/variant.internal.controller';
 import { Product } from './entities/product.entity';
 import { ProductVariantOption } from './entities/productVariantOption.entity';
+import { ProductVariantSku } from './entities/productVariantSku.entity';
+import { ProductVariantSkuValue } from './entities/productVariantSkuValue.entity';
 import { Variant } from './entities/variant.entity';
 import { VariantOption } from './entities/variantOption.entity';
 import { ProductService } from './services/product.service';
@@ -12,7 +14,7 @@ import { ProductVariantOptionService } from './services/productVariantOption.ser
 import { VariantService } from './services/variant.service';
 import { VariantOptionService } from './services/variantOption.service';
 
-const entities = [Product, ProductVariantOption, Variant, VariantOption];
+const entities = [Product, ProductVariantOption, ProductVariantSku, ProductVariantSkuValue, Variant, VariantOption];
 const services = [ProductService, ProductVariantOptionService, VariantService, VariantOptionService];
 const subscribers = [];
 const webControllers = [];

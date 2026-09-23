@@ -29,6 +29,7 @@ import { Payment } from '../../payments/entities/payment.entity';
 import { Customer } from '../../customer/entities/customer.entity';
 import { Product } from '../../product/entities/product.entity';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
+import { ProductVariantSku } from '../../product/entities/productVariantSku.entity';
 import { ProductService } from '../../product/services/product.service';
 import { ProductVariantOptionService } from '../../product/services/productVariantOption.service';
 import { LedgerService } from '../../ledger/services/ledger.service';
@@ -124,6 +125,7 @@ export class SaleService extends BaseService<Sale> {
           saleId: savedSale.id,
           productId: item.productId,
           variantId: item.variantId ?? null,
+          skuId: item.skuId ?? null,
           quantity: item.quantity,
           sellingPrice: unitPrice,
           sourcingPrice: unitCost,
@@ -396,10 +398,28 @@ export class SaleService extends BaseService<Sale> {
   ): Promise<{ unitPrice: number; unitCost: number; itemTotalAmount: number }> {
     const product = await this.productService.isExist({ id: item.productId as any });
 
-    // Unit cost snapshot = the product's sourcing price at the time of sale.
-    // Variant purchases keep sourcing price at product level, so the same cost
-    // applies whether or not a variant is selected.
-    const unitCost = product.sourcingPrice || 0;
+    let unitCost = product.sourcingPrice || 0;
+
+    if (item.skuId) {
+      const sku = await manager.findOne(ProductVariantSku, {
+        where: { id: item.skuId, productId: product.id },
+      });
+      if (!sku) throw new NotFoundException(`SKU not found for product: ${product.title}`);
+      unitCost = sku.sourcingPrice || 0;
+      const unitPrice = item.sellingPrice;
+      if (unitPrice === undefined || unitPrice < 0) {
+        throw new BadRequestException(`Invalid selling price for product: ${product.title}`);
+      }
+      await manager.update(ProductVariantSku, { id: sku.id }, {
+        stockQuantity: (sku.stockQuantity || 0) - item.quantity,
+        saleQuantity: (sku.saleQuantity || 0) + item.quantity,
+      });
+      await manager.update(Product, { id: product.id }, {
+        stock: (product.stock || 0) - item.quantity,
+        saleQuantity: (product.saleQuantity || 0) + item.quantity,
+      });
+      return { unitPrice, unitCost, itemTotalAmount: unitPrice * item.quantity };
+    }
 
     if (item.variantId) {
       const variant = await this.productVariantOptionService.findOne({

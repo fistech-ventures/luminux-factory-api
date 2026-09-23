@@ -23,6 +23,11 @@ export class PurchaseItemDTO {
   @IsString()
   variantId?: string;
 
+  @ApiProperty({ type: String, required: false, description: 'Sellable product SKU id' })
+  @IsOptional()
+  @IsString()
+  skuId?: string;
+
   @ApiProperty({
     type: String,
     required: false,

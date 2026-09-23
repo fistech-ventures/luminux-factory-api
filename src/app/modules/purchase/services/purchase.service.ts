@@ -18,6 +18,7 @@ import { ProductFactory } from '../factories/product.factory';
 import { Product } from '../../product/entities/product.entity';
 import { ProductService } from '../../product/services/product.service';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
+import { ProductVariantSku } from '../../product/entities/productVariantSku.entity';
 import { LedgerService } from '../../ledger/services/ledger.service';
 import { Ledger } from '../../ledger/entities/ledger.entity';
 
@@ -78,7 +79,16 @@ export class PurchaseService extends BaseService<Purchase> {
           // Variant purchase: add stock to the specific variant option and
           // keep the product-level stock in sync (it mirrors the sum of the
           // variant stocks). Sourcing price is still a product-level figure.
-          if (item.variantId) {
+          if (item.skuId) {
+            const sku = await queryRunner.manager.findOne(ProductVariantSku, {
+              where: { id: item.skuId, productId },
+            });
+            if (!sku) throw new BadRequestException('SKU not found for the given product');
+            await queryRunner.manager.update(ProductVariantSku, { id: sku.id }, {
+              stockQuantity: (sku.stockQuantity || 0) + item.quantity,
+              sourcingPrice: calculatedSourcingPrice,
+            });
+          } else if (item.variantId) {
             const variant = await queryRunner.manager.findOne(ProductVariantOption, {
               where: { id: item.variantId, productId },
             });
@@ -92,7 +102,9 @@ export class PurchaseService extends BaseService<Purchase> {
             );
           }
 
-          await this.productService.updateSourcingPrice(item.productId, calculatedSourcingPrice);
+          if (!item.skuId) {
+            await this.productService.updateSourcingPrice(item.productId, calculatedSourcingPrice);
+          }
           await this.productService.updateStock(item.productId, item.quantity);
         } else {
           const productCode = item.productCode?.trim();
@@ -142,6 +154,7 @@ export class PurchaseService extends BaseService<Purchase> {
           purchaseId: savedPurchase.id,
           productId: item.productId,
           variantId: item.variantId ?? null,
+          skuId: item.skuId ?? null,
           productName: item.productName,
           quantity: item.quantity,
           totalProductCost: item.totalProductCost,

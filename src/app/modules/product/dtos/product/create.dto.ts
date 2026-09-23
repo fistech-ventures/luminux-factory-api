@@ -43,6 +43,44 @@ export class ProductVariantOptionDTO {
   readonly position?: number;
 }
 
+export class ProductVariantSkuValueDTO {
+  @ApiProperty({ type: String, required: true })
+  @IsNotEmpty()
+  @IsUUID()
+  readonly variantId!: string;
+
+  @ApiProperty({ type: String, required: true })
+  @IsNotEmpty()
+  @IsUUID()
+  readonly variantOptionId!: string;
+}
+
+export class ProductVariantSkuDTO {
+  @ApiProperty({ type: String, required: true, example: 'PX-400-300-BLK' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(100)
+  readonly productCode!: string;
+
+  @ApiProperty({ type: Number, required: true })
+  @IsNumber()
+  readonly sourcingPrice!: number;
+
+  @ApiProperty({ type: Number, required: true })
+  @IsNumber()
+  readonly sellingPrice!: number;
+
+  @ApiProperty({ type: Number, required: true })
+  @IsNumber()
+  readonly stockQuantity!: number;
+
+  @ApiProperty({ type: [ProductVariantSkuValueDTO], required: true })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantSkuValueDTO)
+  readonly values!: ProductVariantSkuValueDTO[];
+}
+
 export class ProductCreateDTO {
   @ApiProperty({ type: String, required: true, example: 'Rice 25kg' })
   @IsNotEmpty()
@@ -93,6 +131,13 @@ export class ProductCreateDTO {
   @ValidateNested({ each: true })
   @Type(() => ProductVariantOptionDTO)
   readonly variants?: ProductVariantOptionDTO[];
+
+  @ApiProperty({ type: [ProductVariantSkuDTO], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantSkuDTO)
+  readonly skus?: ProductVariantSkuDTO[];
 
   @IsOptional()
   readonly createdBy?: any;
