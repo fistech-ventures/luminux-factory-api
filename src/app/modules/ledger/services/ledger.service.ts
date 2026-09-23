@@ -182,8 +182,12 @@ export class LedgerService extends BaseService<Ledger> {
   }
 
   /**
-   * Employee balance = total advances received - total money spent.
-   * This is the cash the employee is still holding.
+   * Employee balance = money spent - advances received.
+   *
+   * Advances are debited to the employee and expenses are credited, so a
+   * negative balance means the employee still holds company money (they must
+   * return it / account for it), while a positive balance means the company
+   * owes the employee a reimbursement for out-of-pocket spending.
    */
   async getEmployeeBalance(
     employeeId: string,
@@ -206,7 +210,7 @@ export class LedgerService extends BaseService<Ledger> {
     return {
       totalAdvance,
       totalExpense,
-      balance: totalAdvance - totalExpense,
+      balance: totalExpense - totalAdvance,
     };
   }
 
@@ -245,7 +249,7 @@ export class LedgerService extends BaseService<Ledger> {
       openingEntries.forEach((entry) => {
         // For customers: negative balance = they owe us, positive = we owe them
         // For suppliers: positive balance = we owe them, negative = they owe us
-        // For employees: balance = money still in their hand
+        // For employees: negative = employee owes us, positive = we owe them
         if (entityType === 'customer') {
           if (entry.type === 'due') {
             openingBalance -= entry.amount; // They owe us more (debit)
@@ -254,9 +258,9 @@ export class LedgerService extends BaseService<Ledger> {
           }
         } else if (entityType === 'employee') {
           if (entry.type === 'advance') {
-            openingBalance += entry.amount; // Advance in hand (credit)
+            openingBalance -= entry.amount; // Advance given (debit)
           } else if (entry.type === 'expense') {
-            openingBalance -= entry.amount; // Spent from the advance (debit)
+            openingBalance += entry.amount; // Money spent (credit)
           }
         } else {
           if (entry.type === 'due') {
@@ -347,13 +351,16 @@ export class LedgerService extends BaseService<Ledger> {
 
       // For customers (receivables): due = debit, paid = credit
       // For suppliers (payables): due = credit, paid = debit
-      // For employees (advance holder): advance = credit, expense = debit
+      // For employees: advance = debit, expense = credit
+      //   balance = credit - debit = expenses - advances
+      //   negative => employee owes the company (unspent advance)
+      //   positive => company owes the employee (reimburse out of pocket)
       let debit = 0;
       let credit = 0;
 
       if (isEmployee) {
-        credit = entry.type === 'advance' ? entry.amount : 0;
-        debit = entry.type === 'expense' ? entry.amount : 0;
+        debit = entry.type === 'advance' ? entry.amount : 0;
+        credit = entry.type === 'expense' ? entry.amount : 0;
       } else if (entityType === 'customer') {
         debit = isDue ? entry.amount : 0;
         credit = isPaid ? entry.amount : 0;
@@ -364,6 +371,7 @@ export class LedgerService extends BaseService<Ledger> {
 
       // For customers: negative balance = they owe us, positive = we owe them
       // For suppliers: positive balance = we owe them, negative = they owe us
+      // For employees: negative = employee owes us, positive = we owe them
       // Balance = credit - debit
       runningBalance += credit - debit;
 

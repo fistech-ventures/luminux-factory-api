@@ -16,14 +16,22 @@ An employee keeps **company money as an advance / petty cash**:
 | Action                          | Endpoint                          | Money effect                                                        |
 | ------------------------------- | --------------------------------- | ------------------------------------------------------------------- |
 | Admin gives money to employee   | `POST /internal/payments`         | Company account (cash/bKash/bank…) **−= amount**; employee holds it |
-| Employee spends that money      | `POST /internal/expense`          | Company account **unchanged** (already paid out); employee balance drops |
+| Employee spends that money      | `POST /internal/expense`          | Company account **unchanged** (already paid out); expense is credited to the employee |
 | Regular company expense         | `POST /internal/expense` (no `employeeId`) | Company account **−= amount** (old behaviour)              |
 
-**Employee balance / cash in hand = Σ advances − Σ expenses.**
+**Employee balance = Σ expenses − Σ advances.**
 
-Worked example: advance 10,000 → breakfast 1,000 → travel 2,000 ⇒ balance **7,000**.
+An advance is **debited** to the employee (they received company money) and an expense is
+**credited** (they have accounted for part of it):
 
-Ledger sign convention for employees: **advance = credit**, **expense = debit**,
+- `balance < 0` → the employee still holds company money and **must pay/return it to the company**
+- `balance > 0` → the company owes the employee a reimbursement (they spent out of pocket)
+- `balance = 0` → settled
+
+Worked example: advance 10,000 → breakfast 1,000 → travel 2,000 ⇒ balance **−7,000**
+(the employee holds 7,000 that must be returned / settled).
+
+Ledger sign convention for employees: **advance = debit**, **expense = credit**,
 `balance = credit − debit`.
 
 ---
@@ -440,28 +448,31 @@ The ledger entry is recalculated (amount, date, owner), so the employee balance 
   "startDate": "2026-09-01",
   "endDate": "2026-09-30",
   "openingBalance": 0,
-  "closingBalance": 7000,
-  "totals": { "grossTotal": 0, "debitTotal": 3000, "creditTotal": 10000 },
+  "closingBalance": -7000,
+  "totals": { "grossTotal": 0, "debitTotal": 10000, "creditTotal": 3000 },
   "rows": [
-    { "date": "2026-09-23", "particulars": "bank", "narration": "Advance given — Monthly advance", "invoiceNo": null, "qty": null, "gross": null, "debit": 0, "credit": 10000, "balance": 10000 },
-    { "date": "2026-09-23", "particulars": "cash", "narration": "Expense - Breakfast", "invoiceNo": null, "qty": null, "gross": null, "debit": 1000, "credit": 0, "balance": 9000 },
-    { "date": "2026-09-23", "particulars": "cash", "narration": "Expense - Travel allowance", "invoiceNo": null, "qty": null, "gross": null, "debit": 2000, "credit": 0, "balance": 7000 }
+    { "date": "2026-09-23", "particulars": "bank", "narration": "Advance given — Monthly advance", "invoiceNo": null, "qty": null, "gross": null, "debit": 10000, "credit": 0, "balance": -10000 },
+    { "date": "2026-09-23", "particulars": "cash", "narration": "Expense - Breakfast", "invoiceNo": null, "qty": null, "gross": null, "debit": 0, "credit": 1000, "balance": -9000 },
+    { "date": "2026-09-23", "particulars": "cash", "narration": "Expense - Travel allowance", "invoiceNo": null, "qty": null, "gross": null, "debit": 0, "credit": 2000, "balance": -7000 }
   ]
 }
 ```
 
-- `rows` are ordered oldest → newest.
+- `rows` are ordered oldest → newest. `debit` = advance, `credit` = expense.
 - `openingBalance` = net balance of entries **before** `startDate` (0 when no `startDate`).
 - `closingBalance` = last row's `balance` (or `openingBalance` when there are no rows).
+- **Negative balance ⇒ the employee owes the company** (unspent advance to return);
+  positive ⇒ the company owes the employee.
 
 #### `GET /internal/ledger/employee/:employeeId/balance`
 
 ```json
 { "success": true, "statusCode": 200, "message": "Successful response",
-  "data": { "totalAdvance": 10000, "totalExpense": 3000, "balance": 7000 } }
+  "data": { "totalAdvance": 10000, "totalExpense": 3000, "balance": -7000 } }
 ```
 
-Great for a badge/chip on an employee card ("Cash in hand: ৳7,000").
+`balance = totalExpense − totalAdvance`. Negative ⇒ employee owes the company; positive ⇒ company
+owes the employee. Great for a badge/chip on an employee card ("Owes company: ৳7,000").
 
 #### `GET /internal/ledger/filter` — raw entries
 
@@ -541,9 +552,9 @@ Employee advances reduce the matching `paymentMethod` balance; `employeeId` expe
 | Company accounts               | `GET /internal/accounts/balances`, `GET /internal/accounts/transactions`       |
 
 **UI notes**
-- Display cash in hand prominently: green when `balance > 0` (employee holds company money), red
-  when `balance < 0` (employee spent more than advanced).
-- On the statement, map `credit` → money given and `debit` → money spent.
+- Show the balance with its direction: red when `balance < 0` (employee owes the company the
+  unspent advance), green when `balance > 0` (company owes the employee a reimbursement).
+- On the statement, map `debit` → money given (advance) and `credit` → money spent (expense).
 - Fetch the employee list once and build an `id → employee` map to label `expense.employeeId` and
   `payment.party`.
 - Payment method values are case-sensitive and mixed-case (`bKash`), so don't lowercase them.
@@ -589,7 +600,7 @@ Employee advances reduce the matching `paymentMethod` balance; `employeeId` expe
 | PATCH  | `/internal/expense/:id`                                | Edit an expense                  |
 | DELETE | `/internal/expense/:id`                                | Delete an expense                |
 | GET    | `/internal/ledger/statement?entityType=employee&entityId=<id>` | Employee statement      |
-| GET    | `/internal/ledger/employee/:employeeId/balance`        | Cash in hand                     |
+| GET    | `/internal/ledger/employee/:employeeId/balance`        | Employee balance (negative = owes company) |
 | GET    | `/internal/ledger/filter?entityType=employee&entityId=<id>` | Raw ledger entries          |
 | GET    | `/internal/accounts/balances`                          | Company balance per method       |
 | GET    | `/internal/accounts/transactions`                      | Company money-movement feed      |
