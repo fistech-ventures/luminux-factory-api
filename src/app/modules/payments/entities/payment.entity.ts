@@ -12,6 +12,7 @@ export class Payment extends BaseEntity {
 
   // 'customer' => collection from customer (money in)
   // 'supplier' => payment to supplier (money out)
+  // 'employee' => advance / expense money handed to an employee (money out)
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 50, nullable: false })
   entityType?: string;
 

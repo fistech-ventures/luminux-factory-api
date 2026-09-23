@@ -9,6 +9,11 @@ export class ExpenseFilterDTO extends BaseFilterDTO {
   @IsString()
   spentBy?: string;
 
+  @ApiProperty({ type: String, required: false, example: 'employee-uuid' })
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
+
   @ApiProperty({
     type: String,
     required: false,

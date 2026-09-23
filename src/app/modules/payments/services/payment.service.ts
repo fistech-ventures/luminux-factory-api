@@ -22,12 +22,33 @@ import { Sale } from '../../sales/entities/sale.entity';
 import { Purchase } from '../../purchase/entities/purchase.entity';
 import { Customer } from '../../customer/entities/customer.entity';
 import { Supplier } from '../../supplier/entities/supplier.entity';
+import { Employee } from '../../employee/entities/employee.entity';
 import { LedgerService } from '../../ledger/services/ledger.service';
 import { Ledger } from '../../ledger/entities/ledger.entity';
 
 export interface IPaymentWithDetails extends Payment {
-  party?: Customer | Supplier | null;
+  party?: Customer | Supplier | Employee | null;
   reference?: Sale | Purchase | null;
+}
+
+/**
+ * Ledger entry type for a payment. Employee payments are advances (money handed
+ * over to the employee, deducted from the company account right away); customer
+ * and supplier payments are regular settlements.
+ */
+function ledgerTypeForEntity(entityType: string): string {
+  return entityType === 'employee' ? 'advance' : 'paid';
+}
+
+/** Human-facing description for a payment's ledger entry. */
+function paymentDescription(entityType: string, note?: string): string {
+  const base =
+    entityType === 'customer'
+      ? 'Payment received from customer'
+      : entityType === 'employee'
+        ? 'Advance paid to employee'
+        : 'Payment made to supplier';
+  return note ? `${base} - ${note}` : base;
 }
 
 @Injectable()
@@ -43,6 +64,8 @@ export class PaymentService extends BaseService<Payment> {
     private readonly customerRepo: Repository<Customer>,
     @InjectRepository(Supplier)
     private readonly supplierRepo: Repository<Supplier>,
+    @InjectRepository(Employee)
+    private readonly employeeRepo: Repository<Employee>,
     private readonly dataSource: DataSource,
     private readonly ledgerService: LedgerService,
   ) {
@@ -50,10 +73,13 @@ export class PaymentService extends BaseService<Payment> {
   }
 
   /**
-   * Records a payment (collection from customer / payment to supplier):
+   * Records a payment (collection from customer / payment to supplier / advance
+   * to employee):
    * 1. Saves the payment itself.
-   * 2. Writes a 'paid' ledger entry for the customer/supplier so their due
-   *    balance drops (customer: totalDue - totalPaid, supplier: same).
+   * 2. Writes a ledger entry so the party balance moves:
+   *    - customer/supplier: type 'paid' (settles their due).
+   *    - employee: type 'advance' (cash handed over, counted as cash-out in
+   *      the company account balances).
    * 3. When the payment references a sale/purchase, also adjusts that
    *    record's paidAmount/dueAmount so the invoice stays consistent.
    */
@@ -72,17 +98,14 @@ export class PaymentService extends BaseService<Payment> {
       });
       const savedPayment = await queryRunner.manager.save(payment);
 
-      const description =
-        entityType === 'customer' ? 'Payment received from customer' : 'Payment made to supplier';
-
       await this.ledgerService.createLedgerEntry({
         entityType,
         entityId,
-        type: 'paid',
+        type: ledgerTypeForEntity(entityType),
         amount,
         referenceId: savedPayment.id,
         referenceType: 'payment',
-        description: payload.note ? `${description} - ${payload.note}` : description,
+        description: paymentDescription(entityType, payload.note),
         transactionDate: paymentDate ? new Date(paymentDate) : new Date(),
       });
 
@@ -156,11 +179,7 @@ export class PaymentService extends BaseService<Payment> {
         },
       });
 
-      const description = newNote
-        ? `${newEntityType === 'customer' ? 'Payment received from customer' : 'Payment made to supplier'} - ${newNote}`
-        : newEntityType === 'customer'
-          ? 'Payment received from customer'
-          : 'Payment made to supplier';
+      const description = paymentDescription(newEntityType, newNote);
 
       // Upsert (or drop) the entry so it matches the payment record, including
       // a changed amount / party / date. A zero or negative amount drops it.
@@ -171,7 +190,7 @@ export class PaymentService extends BaseService<Payment> {
         {
           entityType: newEntityType,
           entityId: newEntityId,
-          type: 'paid',
+          type: ledgerTypeForEntity(newEntityType),
           amount: newAmount,
           referenceId: id,
           referenceType: 'payment',
@@ -249,7 +268,7 @@ export class PaymentService extends BaseService<Payment> {
     if (!payments.length) return [];
 
     const [parties, sales, purchases] = await Promise.all([
-      loadParties(payments, this.customerRepo, this.supplierRepo),
+      loadParties(payments, this.customerRepo, this.supplierRepo, this.employeeRepo),
       loadSales(
         payments
           .filter((payment) => payment.referenceType === 'sale')

@@ -7,14 +7,14 @@ export class FilterPaymentDTO extends BaseFilterDTO {
   @ApiProperty({
     type: String,
     required: false,
-    enum: ['customer', 'supplier'],
+    enum: ['customer', 'supplier', 'employee'],
     example: 'customer',
   })
   @IsOptional()
-  @IsIn(['customer', 'supplier'])
-  entityType?: 'customer' | 'supplier';
+  @IsIn(['customer', 'supplier', 'employee'])
+  entityType?: 'customer' | 'supplier' | 'employee';
 
-  @ApiProperty({ type: String, required: false, example: 'customer or supplier uuid' })
+  @ApiProperty({ type: String, required: false, example: 'customer / supplier / employee uuid' })
   @IsOptional()
   @IsString()
   entityId?: string;
