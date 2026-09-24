@@ -16,6 +16,7 @@ import { User } from '../entities/user.entity';
 import { UserRole } from './../entities/userRole.entity';
 import { UserRoleService } from './userRole.service';
 import { IAuthUser } from '@src/app/interfaces';
+import { ENUM_ACL_DEFAULT_ROLES } from '@src/shared';
 
 @Injectable()
 export class UserService extends BaseService<User> {
@@ -65,7 +66,13 @@ export class UserService extends BaseService<User> {
       }
       if (roles?.length) {
         for (const role of roles) {
-          const roleData = await this.roleService.findOrCreateRole(role);
+          const roleData = await this.roleService.findOneBase({ id: role as any })
+            ?? (Object.values(ENUM_ACL_DEFAULT_ROLES).includes(role as ENUM_ACL_DEFAULT_ROLES)
+              ? await this.roleService.findOrCreateRole(role)
+              : null);
+          if (!roleData) {
+            throw new BadRequestException(`Role not found: ${role}`);
+          }
           await queryRunner.manager.save(
             Object.assign(new UserRole(), {
               userId: createdUser.id,

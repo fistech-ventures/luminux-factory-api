@@ -1,5 +1,52 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import {
+  ProductVariantOptionDTO,
+  ProductVariantSkuDTO,
+  ProductVariantSkuValueDTO,
+} from '../../product/dtos/product/create.dto';
+
+export class PurchaseCombinationDTO {
+  @ApiProperty({ type: String, required: true })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+
+  @ApiProperty({ type: String, required: true })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(100)
+  productCode!: string;
+
+  @ApiProperty({ type: Number, required: true })
+  @IsNotEmpty()
+  @IsNumber()
+  quantity!: number;
+
+  @ApiProperty({ type: String, required: true })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(50)
+  unit!: string;
+
+  @ApiProperty({ type: Number, required: true })
+  @IsNotEmpty()
+  @IsNumber()
+  totalProductCost!: number;
+
+  @ApiProperty({ type: Number, required: false, default: 0 })
+  @IsOptional()
+  @IsNumber()
+  otherCost?: number;
+
+  @ApiProperty({ type: [ProductVariantSkuValueDTO], required: true })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantSkuValueDTO)
+  values!: ProductVariantSkuValueDTO[];
+}
 
 export class PurchaseItemDTO {
   @ApiProperty({
@@ -75,4 +122,25 @@ export class PurchaseItemDTO {
   @IsString()
   @MaxLength(50)
   unit?: string;
+
+  @ApiProperty({ type: [ProductVariantOptionDTO], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantOptionDTO)
+  variants?: ProductVariantOptionDTO[];
+
+  @ApiProperty({ type: [ProductVariantSkuDTO], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantSkuDTO)
+  skus?: ProductVariantSkuDTO[];
+
+  @ApiProperty({ type: [PurchaseCombinationDTO], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PurchaseCombinationDTO)
+  combinations?: PurchaseCombinationDTO[];
 }

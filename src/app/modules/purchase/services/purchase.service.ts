@@ -19,6 +19,7 @@ import { Product } from '../../product/entities/product.entity';
 import { ProductService } from '../../product/services/product.service';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
 import { ProductVariantSku } from '../../product/entities/productVariantSku.entity';
+import { ProductVariantSkuValue } from '../../product/entities/productVariantSkuValue.entity';
 import { LedgerService } from '../../ledger/services/ledger.service';
 import { Ledger } from '../../ledger/entities/ledger.entity';
 
@@ -54,7 +55,18 @@ export class PurchaseService extends BaseService<Purchase> {
       > = [];
 
       for (const item of items) {
-        const calculatedSourcingPrice = (item.totalProductCost + item.otherCost) / item.quantity;
+        const combinations = item.combinations ?? [];
+        const itemQuantity = combinations.length
+          ? combinations.reduce((sum, combination) => sum + combination.quantity, 0)
+          : item.quantity;
+        const itemTotalProductCost = combinations.length
+          ? combinations.reduce((sum, combination) => sum + combination.totalProductCost, 0)
+          : item.totalProductCost;
+        const itemOtherCost = combinations.length
+          ? combinations.reduce((sum, combination) => sum + (combination.otherCost ?? 0), 0)
+          : item.otherCost;
+        const calculatedSourcingPrice =
+          (itemTotalProductCost + itemOtherCost) / itemQuantity;
 
         let productId: string;
 
@@ -115,22 +127,84 @@ export class PurchaseService extends BaseService<Purchase> {
           }
           await this.productService.assertUniqueProductCode(productCode);
 
+          const detailedStock = combinations.length
+            ? itemQuantity
+            : item.skus?.length
+            ? item.skus.reduce((sum, sku) => sum + (sku.stockQuantity || 0), 0)
+            : item.variants?.length
+              ? item.variants.reduce((sum, variant) => sum + (variant.stockQuantity || 0), 0)
+              : itemQuantity;
           const newProduct = ProductFactory.createProduct(
             productCode,
             item.productName,
             calculatedSourcingPrice,
             calculatedSourcingPrice,
-            item.quantity,
+            detailedStock,
             item.unit,
           );
           const createdProduct = await queryRunner.manager.save(newProduct);
           productId = createdProduct.id;
+
+          if (item.variants?.length) {
+            await queryRunner.manager.save(
+              ProductVariantOption,
+              item.variants.map((variant) => ({
+                ...variant,
+                productId,
+                sellingPrice: variant.sellingPrice ?? calculatedSourcingPrice,
+              })),
+            );
+          }
+
+          if (item.skus?.length) {
+            for (const sku of item.skus) {
+              const { values, ...skuData } = sku;
+              const savedSku = await queryRunner.manager.save(ProductVariantSku, {
+                ...skuData,
+                productId,
+              });
+              await queryRunner.manager.save(
+                ProductVariantSkuValue,
+                values.map((value) => ({ ...value, skuId: savedSku.id })),
+              );
+            }
+          }
+
+          if (combinations.length) {
+            for (const combination of combinations) {
+              const combinationSourcingPrice =
+                (combination.totalProductCost + (combination.otherCost ?? 0)) /
+                combination.quantity;
+              await this.productService.assertUniqueSkuCode(combination.productCode.trim());
+
+              const savedSku = await queryRunner.manager.save(ProductVariantSku, {
+                name: combination.name.trim(),
+                unit: combination.unit.trim(),
+                productCode: combination.productCode.trim(),
+                sourcingPrice: combinationSourcingPrice,
+                sellingPrice: combinationSourcingPrice,
+                stockQuantity: combination.quantity,
+                productId,
+              });
+              await queryRunner.manager.save(
+                ProductVariantSkuValue,
+                combination.values.map((value) => ({ ...value, skuId: savedSku.id })),
+              );
+            }
+          }
         }
 
-        totalQuantity += item.quantity;
-        totalPurchaseAmount += item.totalProductCost + item.otherCost;
+        totalQuantity += itemQuantity;
+        totalPurchaseAmount += itemTotalProductCost + itemOtherCost;
 
-        resolvedItems.push({ ...item, productId, calculatedSourcingPrice });
+        resolvedItems.push({
+          ...item,
+          quantity: itemQuantity,
+          totalProductCost: itemTotalProductCost,
+          otherCost: itemOtherCost,
+          productId,
+          calculatedSourcingPrice,
+        });
       }
 
       const dueAmount = totalPurchaseAmount - paidAmount;

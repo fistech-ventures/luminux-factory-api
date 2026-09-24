@@ -206,12 +206,12 @@ export class ProductService extends BaseService<Product> {
         if (sku.id) await this._repo.manager.delete(ProductVariantSku, { id: sku.id, productId });
         continue;
       }
-      const { values, ...skuData } = sku;
+      const { values, id, ...skuData } = sku;
       this.assertSkuValues(values);
       const code = sku.productCode.trim();
-      await this.assertUniqueSkuCode(code, sku.id);
-      const existing = sku.id
-        ? await this._repo.manager.findOne(ProductVariantSku, { where: { id: sku.id, productId } })
+      await this.assertUniqueSkuCode(code, id);
+      const existing = id
+        ? await this._repo.manager.findOne(ProductVariantSku, { where: { id, productId } })
         : undefined;
       const savedSku = existing
         ? await this._repo.manager.save(ProductVariantSku, { ...existing, ...skuData, productCode: code })
