@@ -29,6 +29,7 @@ export enum ENUM_TABLE_NAMES {
   CUSTOMERS = 'customers',
   SUPPLIERS = 'suppliers',
   EMPLOYEES = 'employees',
+  INVESTMENTS = 'investments',
   EXPENSES = 'expenses',
   PURCHASES = 'purchases',
   PURCHASE_ITEMS = 'purchase_items',

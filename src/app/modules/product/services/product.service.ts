@@ -46,6 +46,8 @@ export class ProductService extends BaseService<Product> {
     const saved = await this._repo.save(
       Object.assign(new Product(), {
         ...restPayload,
+        sourcingPrice: restPayload.sourcingPrice ?? 0,
+        sellingPrice: restPayload.sellingPrice ?? 0,
         productCode,
         stock: productStock,
       }),
@@ -76,6 +78,10 @@ export class ProductService extends BaseService<Product> {
     const updates: any = { ...payload };
     delete updates.variants;
     delete updates.skus;
+
+    if (updates.sourcingPrice == null) delete updates.sourcingPrice;
+    if (updates.sellingPrice == null) delete updates.sellingPrice;
+    if (updates.stock == null) delete updates.stock;
 
     if (updates.productCode) {
       const productCode = updates.productCode.trim();

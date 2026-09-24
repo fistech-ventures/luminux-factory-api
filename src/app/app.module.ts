@@ -15,6 +15,7 @@ import { UserModule } from './modules/user/user.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { EmployeeModule } from './modules/employee/employee.module';
+import { InvestmentModule } from './modules/investment/investment.module';
 import { ExpenseModule } from './modules/expense/expense.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
 import { SalesModule } from './modules/sales/sales.module';
@@ -39,6 +40,7 @@ const MODULES = [
   CustomerModule,
   SupplierModule,
   EmployeeModule,
+  InvestmentModule,
   ExpenseModule,
   PurchaseModule,
   SalesModule,
