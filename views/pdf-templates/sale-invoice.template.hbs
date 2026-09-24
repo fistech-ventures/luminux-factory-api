@@ -248,7 +248,7 @@
                     <div class="item-variant">{{this.variantLabel}}</div>
                   {{/if}}
                 </td>
-                <td class="num">{{this.quantity}}</td>
+                <td class="num">{{this.quantity}}{{#if this.unit}} {{this.unit}}{{/if}}</td>
                 <td class="num">{{business.currency}}{{this.unitPrice}}</td>
                 <td class="num">{{business.currency}}{{this.total}}</td>
               </tr>

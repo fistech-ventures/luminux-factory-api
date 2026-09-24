@@ -64,6 +64,6 @@ export class SaleInternalController {
 
   @Delete(':id')
   async delete(@Param('id') id: string): Promise<any> {
-    return await this.saleService.deleteOneBase(id);
+    return await this.saleService.deleteSale(id);
   }
 }

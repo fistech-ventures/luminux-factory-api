@@ -13,6 +13,7 @@ interface IInvoiceItem {
   title: string;
   variantLabel?: string;
   quantity: number;
+  unit?: string;
   unitPrice: number;
   total: number;
 }
@@ -42,7 +43,11 @@ export class InvoiceService {
   private readonly logger = new Logger(InvoiceService.name);
 
   private readonly saleRelations = {
-    items: { product: true, variant: { variant: true, variantOption: true } },
+    items: {
+      product: true,
+      variant: { variant: true, variantOption: true },
+      sku: { values: { variant: true, variantOption: true } },
+    },
     customer: true,
     soldBy: true,
   };
@@ -115,6 +120,7 @@ export class InvoiceService {
       title: item.product?.title || 'Unknown product',
       variantLabel: this.getVariantLabel(item),
       quantity: item.quantity,
+      unit: item.sku?.unit || item.product?.unit,
       unitPrice: this.round2(item.sellingPrice),
       total: this.round2(item.totalAmount),
     }));
@@ -202,6 +208,14 @@ export class InvoiceService {
   }
 
   private getVariantLabel(item: SaleItem): string | undefined {
+    if (item.sku) {
+      const values = (item.sku.values || [])
+        .map((value) => value.variantOption?.title || value.variant?.title)
+        .filter(Boolean)
+        .join(' / ');
+      return [item.sku.name, item.sku.productCode, values].filter(Boolean).join(' - ') || undefined;
+    }
+
     const variantTitle = item.variant?.variant?.title;
     const optionTitle = item.variant?.variantOption?.title;
     if (variantTitle && optionTitle) return `${variantTitle}: ${optionTitle}`;

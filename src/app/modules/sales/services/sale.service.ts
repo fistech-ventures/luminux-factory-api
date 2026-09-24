@@ -291,6 +291,11 @@ export class SaleService extends BaseService<Sale> {
         where: { referenceId: id, referenceType: 'sale' },
       });
       const separatelyPaidTotal = linkedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      if (newPaidAmount < separatelyPaidTotal) {
+        throw new BadRequestException(
+          `Paid amount cannot be less than linked payments (${separatelyPaidTotal})`,
+        );
+      }
       const atSalePaidAmount = newPaidAmount - separatelyPaidTotal;
 
       const ledgerParty = {
@@ -335,6 +340,12 @@ export class SaleService extends BaseService<Sale> {
 
       await commitTransaction(queryRunner);
 
+      try {
+        await this.invoiceService.generateAndStoreInvoice(id);
+      } catch (invoiceError) {
+        console.error('Invoice regeneration failed after sale update:', invoiceError);
+      }
+
       return await this.findOne({
         where: { id },
         relations: SALE_DETAIL_RELATIONS,
@@ -342,6 +353,62 @@ export class SaleService extends BaseService<Sale> {
     } catch (error) {
       await rollbackTransaction(queryRunner);
       throw new BadRequestException((error as Error).message || 'Sale not updated');
+    }
+  }
+
+  async deleteSale(id: string): Promise<SuccessResponse> {
+    const sale = await this.findOne({
+      where: { id: id as any },
+      relations: ['items'],
+    });
+
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+
+    const queryRunner = await startTransaction(this.dataSource);
+
+    try {
+      const linkedPayments = await queryRunner.manager.find(Payment, {
+        where: { referenceId: id, referenceType: 'sale' },
+      });
+
+      for (const payment of linkedPayments) {
+        await queryRunner.manager.delete(Ledger, {
+          referenceId: payment.id,
+          referenceType: 'payment',
+        });
+      }
+
+      await queryRunner.manager.delete(Payment, {
+        referenceId: id,
+        referenceType: 'sale',
+      });
+      await queryRunner.manager.delete(Ledger, {
+        referenceId: id,
+        referenceType: 'sale',
+      });
+
+      for (const item of sale.items || []) {
+        if (item.skuId) {
+          await queryRunner.manager.increment(ProductVariantSku, { id: item.skuId }, 'stockQuantity', item.quantity || 0);
+          await queryRunner.manager.decrement(ProductVariantSku, { id: item.skuId }, 'saleQuantity', item.quantity || 0);
+        } else if (item.variantId) {
+          await queryRunner.manager.increment(ProductVariantOption, { id: item.variantId }, 'stockQuantity', item.quantity || 0);
+          await queryRunner.manager.decrement(ProductVariantOption, { id: item.variantId }, 'saleQuantity', item.quantity || 0);
+        }
+
+        await queryRunner.manager.increment(Product, { id: item.productId }, 'stock', item.quantity || 0);
+        await queryRunner.manager.decrement(Product, { id: item.productId }, 'saleQuantity', item.quantity || 0);
+      }
+
+      await queryRunner.manager.delete(Sale, { id });
+      await commitTransaction(queryRunner);
+
+      return new SuccessResponse('Sale deleted successfully', null);
+    } catch (error) {
+      await rollbackTransaction(queryRunner);
+      throw new BadRequestException((error as Error).message || 'Sale not deleted');
     }
   }
 
