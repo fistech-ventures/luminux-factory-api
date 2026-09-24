@@ -210,10 +210,10 @@ export class InvoiceService {
   private getVariantLabel(item: SaleItem): string | undefined {
     if (item.sku) {
       const values = (item.sku.values || [])
-        .map((value) => value.variantOption?.title || value.variant?.title)
+        .map((value) => [value.variant?.title, value.variantOption?.title].filter(Boolean).join(': '))
         .filter(Boolean)
-        .join(' / ');
-      return [item.sku.name, item.sku.productCode, values].filter(Boolean).join(' - ') || undefined;
+        .join(', ');
+      return values || item.sku.name || undefined;
     }
 
     const variantTitle = item.variant?.variant?.title;
