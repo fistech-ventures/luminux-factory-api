@@ -215,7 +215,7 @@ export class InvoiceService {
         .map((value) => [value.variant?.title, value.variantOption?.title].filter(Boolean).join(': '))
         .filter(Boolean)
         .join(', ');
-      return values || item.sku.name || undefined;
+      return values || undefined;
     }
 
     const variantTitle = item.variant?.variant?.title;
