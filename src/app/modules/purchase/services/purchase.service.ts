@@ -178,8 +178,6 @@ export class PurchaseService extends BaseService<Purchase> {
               await this.productService.assertUniqueSkuCode(combination.productCode.trim());
 
               const savedSku = await queryRunner.manager.save(ProductVariantSku, {
-                name: combination.name.trim(),
-                unit: combination.unit.trim(),
                 productCode: combination.productCode.trim(),
                 sourcingPrice: combinationSourcingPrice,
                 sellingPrice: combinationSourcingPrice,
@@ -188,7 +186,11 @@ export class PurchaseService extends BaseService<Purchase> {
               });
               await queryRunner.manager.save(
                 ProductVariantSkuValue,
-                combination.values.map((value) => ({ ...value, skuId: savedSku.id })),
+                combination.values.map((value, position) => ({
+                  ...value,
+                  position,
+                  skuId: savedSku.id,
+                })),
               );
             }
           }

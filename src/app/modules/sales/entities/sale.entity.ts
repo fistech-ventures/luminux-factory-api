@@ -7,6 +7,7 @@ import { SaleItem } from './sale-item.entity';
 
 @Entity(ENUM_TABLE_NAMES.SALES, { orderBy: { createdAt: 'DESC' } })
 export class Sale extends BaseEntity {
+  public static readonly SEARCH_TERMS: string[] = ['invoiceNo', 'customer.name', 'customer.contactNumber'];
   public static readonly DATE_FILTER_COLUMN: string = 'date';
 
   @Column({ type: ENUM_COLUMN_TYPES.DATE, nullable: false })

@@ -7,6 +7,9 @@ import { ProductVariantSku } from './productVariantSku.entity';
 
 @Entity(ENUM_TABLE_NAMES.PRODUCT_VARIANT_SKU_VALUES)
 export class ProductVariantSkuValue extends BaseEntity {
+  @Column({ type: 'int', nullable: false, default: 0 })
+  position?: number;
+
   @ManyToOne(() => ProductVariantSku, (sku) => sku.values, { onDelete: 'CASCADE' })
   sku?: ProductVariantSku;
 

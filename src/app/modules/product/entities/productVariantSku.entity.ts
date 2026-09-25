@@ -6,6 +6,7 @@ import { ProductVariantSkuValue } from './productVariantSkuValue.entity';
 
 @Entity(ENUM_TABLE_NAMES.PRODUCT_VARIANT_SKUS, { orderBy: { createdAt: 'DESC' } })
 export class ProductVariantSku extends BaseEntity {
+
   @Column({ length: 255, type: ENUM_COLUMN_TYPES.VARCHAR, nullable: true })
   name?: string;
 

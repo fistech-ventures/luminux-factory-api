@@ -8,11 +8,11 @@ import {
 } from '../../product/dtos/product/create.dto';
 
 export class PurchaseCombinationDTO {
-  @ApiProperty({ type: String, required: true })
-  @IsNotEmpty()
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
   @IsString()
   @MaxLength(255)
-  name!: string;
+  name?: string;
 
   @ApiProperty({ type: String, required: true })
   @IsNotEmpty()
@@ -25,11 +25,11 @@ export class PurchaseCombinationDTO {
   @IsNumber()
   quantity!: number;
 
-  @ApiProperty({ type: String, required: true })
-  @IsNotEmpty()
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
   @IsString()
   @MaxLength(50)
-  unit!: string;
+  unit?: string;
 
   @ApiProperty({ type: Number, required: true })
   @IsNotEmpty()

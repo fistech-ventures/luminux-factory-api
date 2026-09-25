@@ -6,14 +6,19 @@ import { ProductVariantSku } from './productVariantSku.entity';
 
 @Entity(ENUM_TABLE_NAMES.PRODUCTS, { orderBy: { createdAt: 'DESC' } })
 export class Product extends BaseEntity {
-  public static readonly SEARCH_TERMS: string[] = ['title', 'description', 'productCode'];
+  public static readonly SEARCH_TERMS: string[] = [
+    'title',
+    'productCode',
+    'skus.productCode',
+    'skus.values.variantOption.title',
+  ];
 
   @Index()
   @Column({ length: 255, type: ENUM_COLUMN_TYPES.VARCHAR, nullable: false })
   title?: string;
 
   @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
-  description?: string;
+  warranty?: string;
 
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
   sourcingPrice?: number;

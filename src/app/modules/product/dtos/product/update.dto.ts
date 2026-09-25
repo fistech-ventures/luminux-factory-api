@@ -76,7 +76,7 @@ export class ProductUpdateDTO {
   @ApiProperty({ type: String, required: false })
   @IsOptional()
   @IsString()
-  readonly description?: string;
+  readonly warranty?: string;
 
   @ApiProperty({ type: Number, required: false, example: 0 })
   @IsOptional()

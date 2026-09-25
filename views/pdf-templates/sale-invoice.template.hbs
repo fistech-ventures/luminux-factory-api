@@ -247,6 +247,9 @@
                   {{#if this.variantLabel}}
                     <div class="item-variant">{{this.variantLabel}}</div>
                   {{/if}}
+                  {{#if this.warranty}}
+                    <div class="item-variant">Warranty: {{this.warranty}}</div>
+                  {{/if}}
                 </td>
                 <td class="num">{{this.quantity}}{{#if this.unit}} {{this.unit}}{{/if}}</td>
                 <td class="num">{{business.currency}}{{this.unitPrice}}</td>

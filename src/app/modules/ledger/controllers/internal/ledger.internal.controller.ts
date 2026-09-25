@@ -59,6 +59,11 @@ export class LedgerInternalController {
     return await this.ledgerService.getEmployeeBalance(employeeId);
   }
 
+  @Get('balance-summary')
+  async getBalanceSummary(): Promise<any> {
+    return await this.ledgerService.getBalanceSummary();
+  }
+
   @Get('statement')
   async getStatement(@Query() query: GetLedgerStatementDTO): Promise<any> {
     return await this.ledgerService.getStatement(query);

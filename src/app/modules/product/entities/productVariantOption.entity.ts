@@ -7,7 +7,10 @@ import { VariantOption } from './variantOption.entity';
 
 @Entity(ENUM_TABLE_NAMES.PRODUCT_VARIANT_OPTIONS, { orderBy: { position: 'ASC' } })
 export class ProductVariantOption extends BaseEntity {
-  public static readonly SEARCH_TERMS: string[] = ['sku'];
+  public static readonly SEARCH_TERMS: string[] = ['sku', 'variant.title', 'variantOption.title'];
+
+  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
+  position?: number;
 
   @Column({ length: 256, type: ENUM_COLUMN_TYPES.VARCHAR, nullable: true })
   sku?: string;
@@ -44,7 +47,4 @@ export class ProductVariantOption extends BaseEntity {
   @RelationId((e: ProductVariantOption) => e.variantOption)
   @Column({ nullable: false })
   variantOptionId?: string;
-
-  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
-  position?: number;
 }

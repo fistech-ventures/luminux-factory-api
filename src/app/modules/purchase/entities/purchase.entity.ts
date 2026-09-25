@@ -7,6 +7,7 @@ import { PurchaseItem } from './purchase-item.entity';
 
 @Entity(ENUM_TABLE_NAMES.PURCHASES, { orderBy: { createdAt: 'DESC' } })
 export class Purchase extends BaseEntity {
+  public static readonly SEARCH_TERMS: string[] = ['purchaseType', 'supplier.companyName', 'supplier.contactNumber'];
   public static readonly DATE_FILTER_COLUMN: string = 'purchaseDate';
 
   @Column({ type: ENUM_COLUMN_TYPES.DATE, nullable: false })

@@ -77,6 +77,48 @@ export const lockEntireTable = async (
   return queryRunner;
 };
 
+const getNestedSearchValue = (value: unknown, path: string): unknown[] => {
+  if (Array.isArray(value)) return value.flatMap((item) => getNestedSearchValue(item, path));
+  if (value == null) return [];
+  if (!path) return [value];
+
+  const [segment, ...remaining] = path.split('.');
+  return getNestedSearchValue((value as Record<string, unknown>)[segment], remaining.join('.'));
+};
+
+const getSearchScore = (item: unknown, searchTerms: string[], searchTerm: string): number => {
+  const normalizedTerm = searchTerm.trim().toLocaleLowerCase();
+  return searchTerms.reduce<number>((bestScore, term, index) => {
+    const path = term.includes(':') ? term.split(':')[0] : term;
+    const property = term.includes(':') ? term.split(':')[1] : path;
+    const values = getNestedSearchValue(item, property || path);
+    return values.reduce<number>((score, value) => {
+      const normalizedValue = String(value ?? '').toLocaleLowerCase();
+      if (!normalizedValue.includes(normalizedTerm)) return score;
+      const matchScore =
+        (normalizedValue === normalizedTerm ? 100000 : 0) +
+        (normalizedValue.startsWith(normalizedTerm) ? 10000 : 0) +
+        1000 -
+        normalizedValue.length -
+        index;
+      return Math.max(score, matchScore);
+    }, bestScore);
+  }, 0);
+};
+
+const sortPositionedArrays = <T>(value: T): T => {
+  if (!value || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    value.forEach(sortPositionedArrays);
+    if (value.every((item) => item && typeof item === 'object' && typeof item.position === 'number')) {
+      value.sort((left, right) => left.position - right.position);
+    }
+    return value as T;
+  }
+  Object.values(value).forEach(sortPositionedArrays);
+  return value;
+};
+
 export async function findAllByRepo<T extends BaseEntity>(
   repo: Repository<T>,
   filters: T & {
@@ -181,7 +223,9 @@ export async function findAllByRepo<T extends BaseEntity>(
     where: queryOptions as FindOptionsWhere<T>,
   };
 
-  if (searchTerm) {
+  let searchTermsForScore: string[] = [];
+  const hasSearchTerm = Boolean(searchTerm?.trim());
+  if (hasSearchTerm) {
     try {
       let SEARCH_TERMS = options?.SEARCH_TERMS;
       
@@ -189,8 +233,12 @@ export async function findAllByRepo<T extends BaseEntity>(
         // Try to get SEARCH_TERMS from the entity
         try {
           const targetValue = repo.target?.valueOf();
-          if (targetValue && typeof targetValue === 'object' && 'SEARCH_TERMS' in targetValue) {
-            SEARCH_TERMS = (targetValue as any).SEARCH_TERMS;
+          if (
+            targetValue &&
+            (typeof targetValue === 'object' || typeof targetValue === 'function') &&
+            'SEARCH_TERMS' in targetValue
+          ) {
+            SEARCH_TERMS = (targetValue as { SEARCH_TERMS?: string[] }).SEARCH_TERMS;
           }
         } catch (_e) {
           // If accessing SEARCH_TERMS fails, just use empty array
@@ -201,6 +249,7 @@ export async function findAllByRepo<T extends BaseEntity>(
       if (!SEARCH_TERMS) {
         SEARCH_TERMS = [];
       }
+      searchTermsForScore = SEARCH_TERMS;
       
       if (SEARCH_TERMS.length > 0) {
           if (Object.keys(queryOptions).length) {
@@ -213,15 +262,19 @@ export async function findAllByRepo<T extends BaseEntity>(
           for (const term of SEARCH_TERMS) {
             // Check if the search term is a relation
             if (term?.includes('.')) {
-              const [relation, field] = term.split('.');
+              const [relation, ...fieldPath] = term.split('.');
               // Check if the relation is allowed
               if (!relations.includes(relation)) {
                 continue;
               }
+              let nestedField: unknown = ILike(`%${searchTerm}%`);
+              for (let index = fieldPath.length - 1; index >= 0; index -= 1) {
+                nestedField = { [fieldPath[index]]: nestedField };
+              }
               where.push({
                 ...queryOptions,
                 [relation]: {
-                  [field]: ILike(`%${searchTerm}%`),
+                  ...(nestedField as Record<string, unknown>),
                 },
               });
             } else if (term?.includes(':')) {
@@ -250,8 +303,8 @@ export async function findAllByRepo<T extends BaseEntity>(
 
   }
 
-  if (skip && !isNaN(skip)) opts.skip = skip;
-  if (take && !isNaN(take)) opts.take = take;
+  if (!hasSearchTerm && skip && !isNaN(skip)) opts.skip = skip;
+  if (!hasSearchTerm && take && !isNaN(take)) opts.take = take;
 
   if (options?.relations) opts.relations = options?.relations;
 
@@ -273,8 +326,15 @@ export async function findAllByRepo<T extends BaseEntity>(
     opts.order = sortOrderBy;
   }
 
-  const [data, total] = await repo.findAndCount(opts);
-  const combinedData = [...initialData, ...data];
+  const [allData, total] = await repo.findAndCount(opts);
+  const data = hasSearchTerm
+    ? allData
+        .map((item) => ({ item, score: getSearchScore(item, searchTermsForScore, searchTerm ?? '') }))
+        .sort((left, right) => right.score - left.score)
+        .slice(skip, skip + take)
+        .map(({ item }) => item)
+    : allData;
+  const combinedData = [...initialData, ...data].map(sortPositionedArrays);
 
   return new SuccessResponse<T[]>(`${repo.metadata.name} fetched successfully`, combinedData, {
     total: total,

@@ -5,7 +5,7 @@ import { VariantOption } from './variantOption.entity';
 
 @Entity(ENUM_TABLE_NAMES.VARIANTS)
 export class Variant extends BaseEntity {
-  public static readonly SEARCH_TERMS: string[] = ['title'];
+  public static readonly SEARCH_TERMS: string[] = ['title', 'options.title'];
   @Index()
   @Column({ length: 256, type: ENUM_COLUMN_TYPES.VARCHAR, nullable: false, unique: true })
   title?: string;

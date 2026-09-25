@@ -198,8 +198,9 @@ export class ProductService extends BaseService<Product> {
         productId,
       });
       await this._repo.manager.save(
-        values.map((value) => this._repo.manager.create(ProductVariantSkuValue, {
+        values.map((value, position) => this._repo.manager.create(ProductVariantSkuValue, {
           ...value,
+          position,
           skuId: savedSku.id,
         })),
       );
@@ -224,8 +225,9 @@ export class ProductService extends BaseService<Product> {
         : await this._repo.manager.save(ProductVariantSku, { ...skuData, productCode: code, productId });
       await this._repo.manager.delete(ProductVariantSkuValue, { skuId: savedSku.id });
       await this._repo.manager.save(
-        values.map((value) => this._repo.manager.create(ProductVariantSkuValue, {
+        values.map((value, position) => this._repo.manager.create(ProductVariantSkuValue, {
           ...value,
+          position,
           skuId: savedSku.id,
         })),
       );

@@ -12,6 +12,7 @@ import { SaleItem } from '../entities/sale-item.entity';
 interface IInvoiceItem {
   title: string;
   variantLabel?: string;
+  warranty?: string;
   quantity: number;
   unit?: string;
   unitPrice: number;
@@ -119,6 +120,7 @@ export class InvoiceService {
     const items: IInvoiceItem[] = (sale.items || []).map((item) => ({
       title: item.product?.title || 'Unknown product',
       variantLabel: this.getVariantLabel(item),
+      warranty: item.product?.warranty,
       quantity: item.quantity,
       unit: item.sku?.unit || item.product?.unit,
       unitPrice: this.round2(item.sellingPrice),

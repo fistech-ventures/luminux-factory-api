@@ -214,6 +214,26 @@ export class LedgerService extends BaseService<Ledger> {
     };
   }
 
+  async getBalanceSummary(): Promise<{ customerDue: number; supplierDue: number }> {
+    const entries = await this.find({
+      where: [{ entityType: 'customer' }, { entityType: 'supplier' }],
+      select: ['entityType', 'type', 'amount'],
+    });
+
+    return entries.reduce(
+      (summary, entry) => {
+        const amount = Number(entry.amount || 0);
+        if (entry.entityType === 'customer') {
+          summary.customerDue += entry.type === 'due' ? amount : entry.type === 'paid' ? -amount : 0;
+        } else if (entry.entityType === 'supplier') {
+          summary.supplierDue += entry.type === 'due' ? amount : entry.type === 'paid' ? -amount : 0;
+        }
+        return summary;
+      },
+      { customerDue: 0, supplierDue: 0 },
+    );
+  }
+
   async getStatement(query: {
     entityType: LedgerEntityType;
     entityId: string;
