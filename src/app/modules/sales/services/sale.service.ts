@@ -211,6 +211,12 @@ export class SaleService extends BaseService<Sale> {
     return await this.invoiceService.generateInvoicePdf(sale);
   }
 
+  /** Regenerates the invoice PDF, replaces the old R2 file with a new one
+   * under the same file name, and updates the stored invoice URL. */
+  async regenerateInvoice(id: string): Promise<string> {
+    return await this.invoiceService.regenerateInvoice(id);
+  }
+
   async updateSale(id: string, payload: UpdateSaleDTO): Promise<Sale> {
     const existingSale = await this.findOne({
       where: { id: id as any },

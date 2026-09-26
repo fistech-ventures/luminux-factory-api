@@ -122,6 +122,18 @@ export class R2UploadHelper {
     }
   }
 
+  /**
+   * Extracts the S3 key (`folder/fileName`) from an R2 public URL.
+   */
+  public parseR2Key(publicUrl: string): string | null {
+    try {
+      const url = new URL(publicUrl);
+      return decodeURIComponent(url.pathname).replace(/^\/+/, '');
+    } catch {
+      return null;
+    }
+  }
+
   public async deleteFile(filePath: string): Promise<void> {
     try {
       let key = filePath;

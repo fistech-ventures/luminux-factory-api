@@ -66,4 +66,12 @@ export class SaleInternalController {
   async delete(@Param('id') id: string): Promise<any> {
     return await this.saleService.deleteSale(id);
   }
+
+  /** Regenerates the invoice PDF from live data, deletes the old R2 file,
+   * and stores the new one under the same file name. */
+  @Post(':id/invoice/refresh')
+  async refreshInvoice(@Param('id') id: string): Promise<{ url: string }> {
+    const url = await this.saleService.regenerateInvoice(id);
+    return { url };
+  }
 }

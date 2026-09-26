@@ -73,6 +73,27 @@ export class InvoiceService {
   }
 
   /**
+   * Generates the invoice PDF for a sale, deletes the old copy from R2,
+   * and stores the new one under the same file name. Throws on any failure.
+   */
+  async regenerateInvoice(saleId: string): Promise<string> {
+    const sale = await this.findSaleWithInvoiceData(saleId);
+    if (!sale) {
+      throw new Error(`Sale not found: ${saleId}`);
+    }
+
+    const oldUrl = sale.invoiceUrl;
+    if (oldUrl) {
+      const oldKey = this.r2UploadHelper.parseR2Key(oldUrl);
+      if (oldKey) {
+        await this.r2UploadHelper.deleteFile(oldKey);
+      }
+    }
+
+    return await this.generateAndStoreInvoice(saleId);
+  }
+
+  /**
    * Generates the invoice PDF for a sale and stores it on Cloudflare R2,
    * returning the public URL. Throws on any failure so the caller can decide
    * how to handle it.
