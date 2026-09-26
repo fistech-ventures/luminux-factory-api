@@ -126,12 +126,16 @@
       border: 1px solid #000;
     }
 
+    table.items thead th.num,
+    table.items tbody td.num {
+      text-align: right;
+    }
+
     table.items tbody td {
       padding: 5px 5px;
       border: 1px solid #000;
       vertical-align: top;
       font-size: 12px;
-      text-align: right;
     }
 
     .item-title {
@@ -276,7 +280,6 @@
           <tr>
             <th style="width: 50px">SL</th>
             <th>DESCRIPTION</th>
-            <th style="width: 100px">WARRANTY</th>
             <th class="num" style="width: 80px">QNTY</th>
             <th class="num" style="width: 100px">UNIT PRICE</th>
             <th class="num" style="width: 100px">TOTAL</th>
@@ -292,7 +295,6 @@
               <div class="item-variant">{{this.variantLabel}}</div>
               {{/if}}
             </td>
-            <td class="num">{{this.warranty}}</td>
             <td class="num">{{this.quantity}}{{#if this.unit}} {{this.unit}}{{/if}}</td>
             <td class="num">{{business.currency}}{{this.unitPrice}}</td>
             <td class="num">{{business.currency}}{{this.total}}</td>
