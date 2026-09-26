@@ -1,189 +1,354 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Invoice {{invoiceCode}}</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        color: #1f2937;
-        font-size: 13px;
-        line-height: 1.5;
-      }
-      .page { max-width: 720px; margin: 0 auto; padding: 28px; }
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        border-bottom: 3px solid #4f46e5;
-        padding-bottom: 18px;
-      }
-      .business { display: flex; align-items: center; gap: 12px; }
-      .business img { max-height: 56px; max-width: 120px; object-fit: contain; }
-      .business-name { font-size: 20px; font-weight: 700; color: #111827; }
-      .business-meta { color: #6b7280; font-size: 12px; margin-top: 2px; }
-      .doc-title { text-align: right; }
-      .doc-title h1 {
-        font-size: 26px;
-        font-weight: 800;
-        letter-spacing: 2px;
-        color: #4f46e5;
-        text-transform: uppercase;
-      }
-      .badge {
-        display: inline-block;
-        margin-top: 6px;
-        padding: 3px 14px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
-        color: #fff;
-      }
-      .badge-paid { background-color: #16a34a; }
-      .badge-partial { background-color: #d97706; }
-      .badge-due { background-color: #dc2626; }
-      .meta-grid { display: flex; gap: 24px; margin-top: 16px; font-size: 12px; }
-      .meta-grid .label { color: #6b7280; }
-      .meta-grid .value { font-weight: 600; color: #111827; }
-      .parties { display: flex; justify-content: space-between; gap: 24px; margin: 22px 0; }
-      .party { flex: 1; }
-      .party h3 {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        color: #6b7280;
-        margin-bottom: 6px;
-      }
-      .party .name { font-weight: 700; font-size: 14px; }
-      .party .detail { color: #4b5563; font-size: 12px; }
-      table.items { width: 100%; border-collapse: collapse; margin-top: 6px; }
-      table.items thead th {
-        background-color: #4f46e5;
-        color: #fff;
-        text-align: left;
-        padding: 9px 10px;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-      table.items thead th.num, table.items tbody td.num { text-align: right; }
-      table.items tbody td { padding: 9px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-      .item-title { font-weight: 600; }
-      .item-variant { color: #6b7280; font-size: 11px; }
-      .summary { display: flex; justify-content: flex-end; margin-top: 18px; }
-      .summary-box { width: 320px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-      .summary-row { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 13px; }
-      .summary-row.total { background-color: #4f46e5; color: #fff; font-weight: 700; font-size: 15px; }
-      .summary-row.due { color: #dc2626; font-weight: 600; }
-      .amount-words { margin-top: 14px; font-size: 12px; color: #374151; }
-      .amount-words .label { color: #6b7280; }
-      .amount-words .value { font-weight: 600; }
-      .footer { margin-top: 26px; padding-top: 14px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 11px; color: #9ca3af; }
-    </style>
-  </head>
-  <body>
-    <div class="page">
-      <div class="header">
-        <div class="business">
-          {{#if business.logo}}<img src="{{business.logo}}" alt="Logo" />{{/if}}
-          <div>
-            <div class="business-name">{{business.name}}</div>
-            <div class="business-meta">
-              {{#if business.address}}{{business.address}}<br />{{/if}}
-              {{#if business.phone}}Phone: {{business.phone}}{{/if}}
-            </div>
-          </div>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice {{invoiceCode}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', 'Helvetica', sans-serif;
+      color: #000;
+      font-size: 12px;
+      line-height: 1.4;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 0;
+      position: relative;
+      background: #fff;
+    }
+
+    .header-image {
+      width: 100%;
+      height: auto;
+      margin-bottom: 20px;
+    }
+
+    .invoice-content {
+      padding: 0 20px;
+    }
+
+    .invoice-title {
+      font-size: 32px;
+      font-weight: bold;
+      color: #000;
+      margin-bottom: 20px;
+      text-align: center;
+      text-decoration: underline;
+    }
+
+    .invoice-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #333;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #000;
+    }
+
+    .invoice-meta .left {
+      text-align: left;
+    }
+
+    .invoice-meta .right {
+      text-align: right;
+    }
+
+    .invoice-meta .label {
+      font-weight: bold;
+      color: #000;
+      display: inline-block;
+    }
+
+    .invoice-meta .value {
+      color: #000;
+    }
+
+    .parties {
+      display: flex;
+      justify-content: space-between;
+      gap: 40px;
+      margin: 25px 0;
+    }
+
+    .party {
+      flex: 1;
+    }
+
+    .party h3 {
+      font-size: 12px;
+      font-weight: bold;
+      color: #000;
+      border-bottom: 1px solid #000;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .party .name {
+      font-weight: bold;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .party .detail {
+      color: #000;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    table.items {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    table.items thead th {
+      background-color: #2B4837;
+      color: #fff;
+      text-align: center;
+      padding: 5px 5px;
+      font-size: 14px;
+      font-weight: bold;
+      border: 1px solid #000;
+    }
+
+    table.items tbody td {
+      padding: 5px 5px;
+      border: 1px solid #000;
+      vertical-align: top;
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .item-title {
+      font-weight: bold;
+    }
+
+    .item-variant {
+      color: #666;
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    .summary {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    .summary-box {
+      width: 220px;
+      border: 1px solid #000;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 5px;
+      font-size: 12px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .summary-row:last-child {
+      border-bottom: none;
+    }
+
+    .summary-row.total {
+      background-color: #e8e8e8;
+      font-weight: bold;
+      font-size: 12px;
+      border-top: 2px solid #000;
+    }
+
+    .summary-row.due {
+      color: #dc2626;
+      font-weight: bold;
+    }
+
+    .footer-section {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+    }
+
+    .signature-section {
+      padding: 0 20px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .signature-box {
+      width: 200px;
+      text-align: center;
+    }
+
+    .signature-line {
+      border-top: 1px solid #000;
+      margin-top: 40px;
+      padding-top: 5px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .footer-image {
+      width: 100%;
+      height: auto;
+      object-fit: cover;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <!-- Header Image -->
+    <div class="header-image">
+      {{#if headerImage}}
+      <img src="{{headerImage}}" alt="Header" style="width: 100%; height: auto;" />
+      {{/if}}
+    </div>
+
+    <!-- Watermark Image -->
+    {{#if watermarkImage}}
+    <img src="{{watermarkImage}}" alt="Watermark"
+      style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.7; width: 500px; height: auto;" />
+    {{/if}}
+
+    <div class="invoice-content">
+      <!-- Invoice Title -->
+      <div class="invoice-title">INVOICE</div>
+
+      <!-- Invoice Meta -->
+      <div class="invoice-meta">
+        <div class="left">
+          <div><span class="label">DATE:</span> <span class="value">{{date}}</span></div>
         </div>
-        <div class="doc-title">
-          <h1>Invoice</h1>
-          <div style="color: #4b5563; font-weight: 600">{{invoiceCode}}</div>
-          {{#compare paymentStatus 'PAID' '==='}}
-            <span class="badge badge-paid">PAID</span>
-          {{else}}
-            {{#compare paymentStatus 'PARTIAL' '==='}}
-              <span class="badge badge-partial">PARTIAL</span>
-            {{else}}
-              <span class="badge badge-due">DUE</span>
-            {{/compare}}
-          {{/compare}}
+        <div class="right">
+          <div><span class="label">INVOICE NO:</span> <span class="value">{{invoiceCode}}</span></div>
         </div>
       </div>
 
-      <div class="meta-grid">
-        <div><div class="label">Date</div><div class="value">{{date}}</div></div>
-        <div><div class="label">Payment Method</div><div class="value">{{paymentMethod}}</div></div>
-        <div><div class="label">Sold By</div><div class="value">{{soldByName}}</div></div>
-      </div>
-
+      <!-- Parties -->
       <div class="parties">
         <div class="party">
-          <h3>Billed From</h3>
-          <div class="name">{{business.name}}</div>
-          <div class="detail">
-            {{#if business.address}}{{business.address}}<br />{{/if}}
-            {{#if business.phone}}Phone: {{business.phone}}{{/if}}
+          <h3>Bill To</h3>
+          <div class="name">
+            {{#if customerCompany}}
+            {{customerCompany}}
+            {{else}}
+            {{customerName}}
+            {{/if}}
           </div>
-        </div>
-        <div class="party" style="text-align: right">
-          <h3>Billed To</h3>
-          <div class="name">{{customerName}}</div>
           <div class="detail">
-            {{#if customerCompany}}{{customerCompany}}<br />{{/if}}
             {{#if customerPhone}}Phone: {{customerPhone}}<br />{{/if}}
             {{#if customerAddress}}{{customerAddress}}{{/if}}
           </div>
         </div>
+        <div class="party" style="text-align: right">
+          <h3>Ship To</h3>
+          <div class="name">{{shippingTo}}</div>
+          <div class="detail">
+            {{#if shippingContact}}Phone: {{shippingContact}}<br />{{/if}}
+            {{#if shippingAddress}}{{shippingAddress}}{{/if}}
+          </div>
+        </div>
       </div>
 
+      <!-- Items -->
       <table class="items">
         <thead>
           <tr>
-            <th style="width: 40px">#</th>
-            <th style="width: 42%">Item</th>
-            <th style="width: 80px">Warranty</th>
-            <th class="num" style="width: 50px">Qty</th>
-            <th class="num" style="width: 75px">Unit Price</th>
-            <th class="num" style="width: 85px">Total</th>
+            <th style="width: 50px">SL</th>
+            <th>DESCRIPTION</th>
+            <th style="width: 100px">WARRANTY</th>
+            <th class="num" style="width: 80px">QNTY</th>
+            <th class="num" style="width: 100px">UNIT PRICE</th>
+            <th class="num" style="width: 100px">TOTAL</th>
           </tr>
         </thead>
         <tbody>
           {{#each items}}
-            <tr>
-              <td>{{addOne @index}}</td>
-              <td>
-                <div class="item-title">{{this.title}}</div>
-                {{#if this.variantLabel}}<div class="item-variant">{{this.variantLabel}}</div>{{/if}}
-              </td>
-              <td>{{this.warranty}}</td>
-              <td class="num">{{this.quantity}}</td>
-              <td class="num">{{business.currency}}{{this.unitPrice}}</td>
-              <td class="num">{{business.currency}}{{this.total}}</td>
-            </tr>
+          <tr>
+            <td>{{addOne @index}}</td>
+            <td>
+              <div class="item-title">{{this.title}}</div>
+              {{#if this.variantLabel}}
+              <div class="item-variant">{{this.variantLabel}}</div>
+              {{/if}}
+            </td>
+            <td class="num">{{this.warranty}}</td>
+            <td class="num">{{this.quantity}}{{#if this.unit}} {{this.unit}}{{/if}}</td>
+            <td class="num">{{business.currency}}{{this.unitPrice}}</td>
+            <td class="num">{{business.currency}}{{this.total}}</td>
+          </tr>
           {{/each}}
         </tbody>
       </table>
 
+      <!-- Summary -->
       <div class="summary">
         <div class="summary-box">
-          <div class="summary-row"><span>Subtotal</span><span>{{business.currency}}{{subTotal}}</span></div>
-          <div class="summary-row"><span>Discount</span><span>{{business.currency}}{{discount}}</span></div>
-          <div class="summary-row"><span>Paid</span><span>{{business.currency}}{{paidAmount}}</span></div>
+          <div class="summary-row">
+            <span>Total Amount</span>
+            <span>{{subTotal}}</span>
+          </div>
+          <div class="summary-row">
+            <span>Discount</span>
+            <span>{{discount}}</span>
+          </div>
+          <div class="summary-row">
+            <span>Grand Total</span>
+            <span>{{grandTotal}}</span>
+          </div>
+          <div class="summary-row">
+            <span>Paid Amount</span>
+            <span>{{paidAmount}}</span>
+          </div>
           {{#compare dueAmount 0 '>'}}
-            <div class="summary-row due"><span>Due</span><span>{{business.currency}}{{dueAmount}}</span></div>
+          <div class="summary-row due">
+            <span>Due Amount</span>
+            <span>{{dueAmount}}</span>
+          </div>
           {{/compare}}
-          <div class="summary-row total"><span>Grand Total</span><span>{{business.currency}}{{grandTotal}}</span></div>
         </div>
       </div>
+    </div>
 
-      <div class="amount-words">
-        <span class="label">Amount in words: </span>
-        <span class="value">{{convertAmountToWords grandTotal currencyName}}</span>
+    <!-- Footer Section -->
+    <div class="footer-section">
+      <!-- Signature Section -->
+      <div class="signature-section">
+        <div class="signature-box">
+          <div class="signature-line">Received By</div>
+        </div>
+        <div class="signature-box">
+          <div class="signature-line">Prepared By</div>
+        </div>
       </div>
-      <div class="footer">
-        {{#if business.name}}{{business.name}} - Thank you for your business!{{else}}Thank you for your business!{{/if}}
+      <!-- Footer Image -->
+      <div class="footer-image">
+        {{#if footerImage}}
+        <img src="{{footerImage}}" alt="Footer" style="width: 100%; height: auto;" />
+        {{/if}}
       </div>
     </div>
-  </body>
+  </div>
+</body>
+
 </html>
