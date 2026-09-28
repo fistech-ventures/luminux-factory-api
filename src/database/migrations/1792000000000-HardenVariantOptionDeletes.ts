@@ -14,9 +14,6 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *  2. Adds a hard-blocking trigger `prevent_variant_options_delete` that aborts ANY
  *     DELETE against variant_options. The trigger is unconditional, so neither the
  *     application nor a DB admin can delete a variant option.
- *  3. Adds a `CHECK (true)` constraint on variant_options to make the table
- *     effectively immutable at the constraint level (defensive, mirrors the
- *     isDeleted soft-delete approach used on the other tables).
  *
  * Down migration removes the trigger/constraint only — it does NOT restore cascading
  * behaviour. Restore from a backup or recreate the FKs manually if rollback is ever
@@ -100,12 +97,13 @@ Contact the system administrator if you believe this is a mistake.';
     //    "truncate" or a DELETE that bypasses the trigger name
     //    (e.g. `ALTER TABLE variant_options DISABLE TRIGGER` then DELETE).
     //    Normal upsert / isDeleted = true updates are unaffected.
+    //
+    //    NOTE: We intentionally do NOT add a CHECK constraint on "ctid" because
+    //    "ctid" is a system column that cannot be referenced in a CHECK
+    //    constraint (Postgres error 42P10). The trigger above is the actual
+    //    protection mechanism; this section is retained as a placeholder for
+    //    future defensive constraints that do not reference system columns.
     // -----------------------------------------------------------------------
-    await queryRunner.query(`
-      ALTER TABLE "variant_options"
-      ADD CONSTRAINT "chk_variant_options_immutable"
-        CHECK ("ctid" IS NOT NULL);
-    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
