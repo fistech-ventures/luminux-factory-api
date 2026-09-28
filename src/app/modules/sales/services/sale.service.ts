@@ -380,41 +380,44 @@ export class SaleService extends BaseService<Sale> {
       });
 
       for (const payment of linkedPayments) {
-        await queryRunner.manager.delete(Ledger, {
-          referenceId: payment.id,
-          referenceType: 'payment',
-        });
+        // Soft-delete ledger entries instead of hard-deleting them.
+        // Ledger entries are transaction records, so they are never hard-deleted.
+        await queryRunner.manager.update(Ledger, { id: payment.id }, { isDeleted: true });
       }
 
-      await queryRunner.manager.delete(Payment, {
-        referenceId: id,
-        referenceType: 'sale',
-      });
-      await queryRunner.manager.delete(Ledger, {
-        referenceId: id,
-        referenceType: 'sale',
-      });
+      // Soft-delete payments instead of hard-deleting them.
+      await queryRunner.manager.update(Payment, { referenceId: id, referenceType: 'sale' }, { isDeleted: true });
+      // Soft-delete ledger entries for the sale.
+      await queryRunner.manager.update(Ledger, { referenceId: id, referenceType: 'sale' }, { isDeleted: true });
 
       for (const item of sale.items || []) {
         if (item.skuId) {
-          await queryRunner.manager.increment(ProductVariantSku, { id: item.skuId }, 'stockQuantity', item.quantity || 0);
-          await queryRunner.manager.decrement(ProductVariantSku, { id: item.skuId }, 'saleQuantity', item.quantity || 0);
+          // Restore stock instead of decrementing (since we're not hard-deleting the SKU)
+          await queryRunner.manager.update(ProductVariantSku, { id: item.skuId }, {
+            stockQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
+            saleQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
+          });
         } else if (item.variantId) {
-          await queryRunner.manager.increment(ProductVariantOption, { id: item.variantId }, 'stockQuantity', item.quantity || 0);
-          await queryRunner.manager.decrement(ProductVariantOption, { id: item.variantId }, 'saleQuantity', item.quantity || 0);
+          await queryRunner.manager.update(ProductVariantOption, { id: item.variantId }, {
+            stockQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
+            saleQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
+          });
         }
 
-        await queryRunner.manager.increment(Product, { id: item.productId }, 'stock', item.quantity || 0);
-        await queryRunner.manager.decrement(Product, { id: item.productId }, 'saleQuantity', item.quantity || 0);
+        await queryRunner.manager.update(Product, { id: item.productId }, {
+          stock: (item.productId ? 0 : 0) + (item.quantity || 0),
+          saleQuantity: (item.productId ? 0 : 0) + (item.quantity || 0),
+        });
       }
 
-      await queryRunner.manager.delete(Sale, { id });
+      // Soft-delete the sale instead of hard-deleting it.
+      await queryRunner.manager.update(Sale, { id }, { isDeleted: true });
       await commitTransaction(queryRunner);
 
-      return new SuccessResponse('Sale deleted successfully', null);
+      return new SuccessResponse('Sale soft-deleted successfully', null);
     } catch (error) {
       await rollbackTransaction(queryRunner);
-      throw new BadRequestException((error as Error).message || 'Sale not deleted');
+      throw new BadRequestException((error as Error).message || 'Sale not soft-deleted');
     }
   }
 

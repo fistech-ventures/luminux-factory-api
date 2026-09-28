@@ -3,7 +3,6 @@ import { BaseEntity, IBaseService, IMultipleSort } from '@src/app/base';
 import { findAllByRepo } from '@src/shared/utils/dborm.utils';
 import {
   DeepPartial,
-  DeleteResult,
   FindManyOptions,
   FindOneOptions,
   FindOptionsWhere,
@@ -30,11 +29,9 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
     return this.repo.findOne(options);
   }
 
-  public async delete(
-    criteria: string | string[] | number | number[] | Date | Date[] | FindOptionsWhere<T>,
-  ): Promise<DeleteResult> {
-    return this.repo.delete(criteria);
-  }
+  // NOTE: Hard delete is intentionally NOT provided as a public method.
+  // All deletions must go through softDelete() which sets isDeleted = true.
+  // The repo.delete() method is deliberately not exposed as a public API.
 
   public async save(
     entities: T[],
@@ -130,13 +127,16 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
   }
 
   async deleteOneBase(id: string): Promise<SuccessResponse> {
-    await this.repo.delete(id);
-    return new SuccessResponse(`${this.repo.metadata.name} deleted successfully`, null);
+    await this.repo.update(id, { isDeleted: true } as any);
+    return new SuccessResponse(`${this.repo.metadata.name} soft-deleted successfully`, null);
   }
 
   async deleteBulkBase(id: string[]): Promise<SuccessResponse> {
-    await this.repo.delete(id);
-    return new SuccessResponse(`${this.repo.metadata.name} deleted successfully`, null);
+    if (id.length === 0) {
+      return new SuccessResponse(`${this.repo.metadata.name} soft-deleted successfully`, null);
+    }
+    await this.repo.update(id, { isDeleted: true } as any);
+    return new SuccessResponse(`${this.repo.metadata.name} soft-deleted successfully`, null);
   }
 
   async softDeleteOneBase(id: string): Promise<SuccessResponse> {

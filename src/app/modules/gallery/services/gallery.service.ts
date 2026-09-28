@@ -123,7 +123,9 @@ export class GalleryService extends BaseService<Gallery> {
     const deletedItem = await this.findByIdBase(id);
     try {
       await this.fileUploadService.deleteFromR2(deletedItem?.key);
-      return this.deleteOneBase(id);
+      // Soft-delete the gallery instead of hard-deleting it.
+      // Gallery is a data table, so it is never hard-deleted.
+      return this.softDeleteOneBase(id);
     } catch (error) {
       throw error;
     }
@@ -135,6 +137,8 @@ export class GalleryService extends BaseService<Gallery> {
       await asyncForEach(itemsToDelete, async (item) => {
         await this.fileUploadService.deleteFromR2(item?.key);
       });
+      // Soft-delete the galleries instead of hard-deleting them.
+      // Gallery is a data table, so it is never hard-deleted.
       return this.deleteBulkBase(ids);
     } catch (error) {
       throw error;

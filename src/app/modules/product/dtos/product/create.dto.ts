@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -49,15 +50,25 @@ export class ProductVariantSkuValueDTO {
   @IsNumber()
   readonly position?: number;
 
-  @ApiProperty({ type: String, required: true })
-  @IsNotEmpty()
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsUUID()
+  readonly id?: string;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
   @IsUUID()
   readonly variantId!: string;
 
-  @ApiProperty({ type: String, required: true })
-  @IsNotEmpty()
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
   @IsUUID()
   readonly variantOptionId!: string;
+
+  @ApiProperty({ type: Boolean, required: false })
+  @IsOptional()
+  @IsBoolean()
+  readonly isDeleted?: boolean;
 }
 
 export class ProductVariantSkuDTO {

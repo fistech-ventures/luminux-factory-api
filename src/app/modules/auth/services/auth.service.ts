@@ -192,8 +192,10 @@ export class AuthService {
         } as UserProfileCreateDTO;
         const profile = await this.userProfileService.createOne(payloadForWorkerProfile);
         if (!profile) {
-          await this.userService.deleteOneBase(createdUser.id);
-          await this.userRoleService.deleteOneBase(createdUserRole.id);
+          // Soft-delete the user and user_role instead of hard-deleting them.
+          // These are data tables, so they are never hard-deleted.
+          await this.userService.softDeleteOneBase(createdUser.id);
+          await this.userRoleService.softDeleteOneBase(createdUserRole.id);
           throw new BadRequestException('Cannot create worker profile');
         }
       }

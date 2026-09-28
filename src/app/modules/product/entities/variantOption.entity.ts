@@ -6,10 +6,14 @@ import { Variant } from './variant.entity';
 @Entity(ENUM_TABLE_NAMES.VARIANT_OPTIONS, { orderBy: { createdAt: 'DESC' } })
 export class VariantOption extends BaseEntity {
   public static readonly SEARCH_TERMS: string[] = [];
+
   @Column({ length: 256, type: ENUM_COLUMN_TYPES.VARCHAR, nullable: false })
   title?: string;
 
-  @ManyToOne(() => Variant, { onDelete: 'CASCADE' })
+  @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
+  isDeleted?: boolean;
+
+  @ManyToOne(() => Variant, { onDelete: 'RESTRICT' })
   variant?: Variant;
 
   @RelationId((e: VariantOption) => e.variant)

@@ -10,6 +10,9 @@ export class ProductVariantSkuValue extends BaseEntity {
   @Column({ type: 'int', nullable: false, default: 0 })
   position?: number;
 
+  @Column({ type: 'boolean', default: false })
+  isDeleted?: boolean;
+
   @ManyToOne(() => ProductVariantSku, (sku) => sku.values, { onDelete: 'CASCADE' })
   sku?: ProductVariantSku;
 
@@ -18,7 +21,7 @@ export class ProductVariantSkuValue extends BaseEntity {
   @Column({ nullable: false })
   skuId?: string;
 
-  @ManyToOne(() => Variant, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Variant, { onDelete: 'RESTRICT' })
   variant?: Variant;
 
   @Index()
@@ -26,7 +29,7 @@ export class ProductVariantSkuValue extends BaseEntity {
   @Column({ nullable: false })
   variantId?: string;
 
-  @ManyToOne(() => VariantOption, { onDelete: 'CASCADE' })
+  @ManyToOne(() => VariantOption, { onDelete: 'RESTRICT' })
   variantOption?: VariantOption;
 
   @Index()

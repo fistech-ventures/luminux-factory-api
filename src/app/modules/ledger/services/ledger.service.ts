@@ -72,7 +72,9 @@ export class LedgerService extends BaseService<Ledger> {
   ): Promise<void> {
     if (!shouldExist) {
       if (existing) {
-        await manager.delete(Ledger, { id: existing.id });
+        // Soft-delete the ledger entry instead of hard-deleting it.
+        // Ledger entries are transaction records, so they are never hard-deleted.
+        await manager.update(Ledger, { id: existing.id }, { isDeleted: true });
       }
       return;
     }

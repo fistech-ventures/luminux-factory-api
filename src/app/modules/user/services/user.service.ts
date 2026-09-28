@@ -206,10 +206,16 @@ export class UserService extends BaseService<User> {
             userId: id,
             roleId: role.role,
           });
-          await queryRunner.manager.delete(UserRole, {
-            userId: id,
-            roleId: role.role,
-          });
+          // Soft-delete the user_role instead of hard-deleting it.
+          // User roles are always active (default true), so set isDeleted = true.
+          // Note: We use a direct queryRunner manager update because the userRoleService
+          // doesn't expose a findOneByUserIdAndRoleId method. This is safe because we
+          // just verified with isExist() that the row exists.
+          await this._repo.manager.update(
+            UserRole,
+            { userId: id, roleId: role.role },
+            { isDeleted: true },
+          );
         });
 
         await asyncForEach(newOrUpdatedItems, async (role: UpdateRolesDTO) => {

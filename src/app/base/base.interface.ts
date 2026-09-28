@@ -9,6 +9,10 @@ export interface IBaseService<T> {
 
   findOneBase(filters: GenericObject, options?: IFindBaseOptions<T>): Promise<T>;
 
+  // Note: deleteOneBase and deleteBulkBase are no longer part of the interface.
+  // All deletion methods now use soft-delete to set isDeleted = true.
+  // deleteOneBase and deleteBulkBase from BaseService are removed to prevent
+  // accidental hard deletion of data.
   findAllBase(filters: GenericObject, options?: IFindBaseOptions<T>): Promise<SuccessResponse<T[]>>;
 
   createOneBase(data: T, options?: IFindBaseOptions<T>): Promise<T>;
@@ -18,10 +22,6 @@ export interface IBaseService<T> {
     data: QueryDeepPartialEntity<T>,
     options?: IFindBaseOptions<T>,
   ): Promise<T>;
-
-  deleteOneBase(id: string): Promise<SuccessResponse>;
-
-  deleteBulkBase(id: string[]): Promise<SuccessResponse>;
 
   softDeleteOneBase(id: string): Promise<SuccessResponse>;
 

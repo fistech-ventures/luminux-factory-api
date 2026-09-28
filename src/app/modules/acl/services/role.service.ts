@@ -131,10 +131,9 @@ export class RoleService extends BaseService<Role> {
         if (!isRolePermissionExist) {
           throw new BadRequestException('Permission does not exist');
         }
-        await queryRunner.manager.delete(RolePermission, {
-          roleId: isRoleExist.id,
-          permissionId: permissionId,
-        });
+        // Soft-delete the role_permission instead of hard-deleting it.
+        // Role permissions are always active (default true), so set isDeleted = true.
+        await this.rolePermissionService.updateOneBase(isRolePermissionExist.id, { isDeleted: true });
 
         removedPermissions.push(permissionId);
       });
