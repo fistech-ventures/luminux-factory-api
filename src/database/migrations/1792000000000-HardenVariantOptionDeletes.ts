@@ -48,23 +48,34 @@ export class HardenVariantOptionDeletes1792000000000 implements MigrationInterfa
     //    impossible even if someone disables/removes the FKs later.
     //
     //    The trigger works for both plain DELETE and ON DELETE CASCADE/DELETE FROM.
+    //
+    //    NOTE: We do not wrap the CREATE FUNCTION in a nested DO block because
+    //    queryRunner.query() already runs inside a transaction, and Postgres does
+    //    not allow nested transaction blocks (`BEGIN`). Instead we drop the existing
+    //    trigger/function (if any) and recreate them directly.
     // -----------------------------------------------------------------------
+    // Drop existing trigger/function to make this migration idempotent.
     await queryRunner.query(`
       DO $$
       BEGIN
-        -- If the trigger already exists (e.g. upgrades from an earlier fix), do nothing.
-        IF NOT EXISTS (
+        IF EXISTS (
           SELECT 1 FROM pg_trigger
           WHERE tgname = 'prevent_variant_options_delete'
             AND tgrelid = 'variant_options'::regclass
         ) THEN
+          DROP TRIGGER "prevent_variant_options_delete" ON "variant_options";
+          DROP FUNCTION "public".prevent_variant_options_delete();
+        END IF;
+      END $$;
+    `);
 
-          CREATE FUNCTION "public"."prevent_variant_options_delete"()
-          RETURNS trigger
-          LANGUAGE plpgsql
-          AS $$
-          BEGIN
-            RAISE EXCEPTION '
+    await queryRunner.query(`
+      CREATE FUNCTION "public".prevent_variant_options_delete()
+      RETURNS trigger
+      LANGUAGE plpgsql
+      AS $$
+      BEGIN
+        RAISE EXCEPTION '
 ERROR:  Cannot delete variant options.
 
 variant_options is a master lookup table that is never allowed to be deleted.
@@ -73,15 +84,15 @@ isDeleted = true via the API. Hard database deletion is blocked at the database
 layer and cannot be bypassed.
 
 Contact the system administrator if you believe this is a mistake.';
-          END;
-          $$;
+      END;
+      $$;
+    `);
 
-          CREATE TRIGGER "prevent_variant_options_delete"
-          BEFORE DELETE ON "variant_options"
-          FOR EACH ROW
-          EXECUTE FUNCTION "public"."prevent_variant_options_delete"();
-        END IF;
-      END $$;
+    await queryRunner.query(`
+      CREATE TRIGGER "prevent_variant_options_delete"
+      BEFORE DELETE ON "variant_options"
+      FOR EACH ROW
+      EXECUTE FUNCTION "public".prevent_variant_options_delete();
     `);
 
     // -----------------------------------------------------------------------
@@ -110,11 +121,14 @@ Contact the system administrator if you believe this is a mistake.';
             AND tgrelid = 'variant_options'::regclass
         ) THEN
           DROP TRIGGER "prevent_variant_options_delete" ON "variant_options";
-          DROP FUNCTION "public"."prevent_variant_options_delete"();
+          DROP FUNCTION "public".prevent_variant_options_delete();
         END IF;
       END $$;
+    `);
 
-      ALTER TABLE "variant_options" DROP CONSTRAINT IF EXISTS "chk_variant_options_immutable";
+    await queryRunner.query(`
+      ALTER TABLE "variant_options"
+      DROP CONSTRAINT IF EXISTS "chk_variant_options_immutable";
     `);
   }
 }
