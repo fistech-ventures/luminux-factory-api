@@ -57,6 +57,14 @@ export class PurchaseService extends BaseService<Purchase> {
 
       for (const item of items) {
         const combinations = item.combinations ?? [];
+        if (
+          combinations.some(
+            (combination) =>
+              !Number.isFinite(Number(combination.quantity)) || Number(combination.quantity) <= 0,
+          )
+        ) {
+          throw new BadRequestException('Combination quantity must be greater than zero');
+        }
         const itemQuantity = combinations.length
           ? combinations.reduce((sum, combination) => sum + combination.quantity, 0)
           : item.quantity;
@@ -84,10 +92,60 @@ export class PurchaseService extends BaseService<Purchase> {
             await queryRunner.manager.update(Product, { id: item.productId }, { unit: item.unit });
           }
 
-          // Variant purchase: add stock to the specific variant option and
-          // keep the product-level stock in sync (it mirrors the sum of the
-          // variant stocks). Sourcing price is still a product-level figure.
-          if (item.skuId) {
+          if (combinations.length) {
+            let weightedSourcingCost = 0;
+            for (const combination of combinations) {
+              if (!combination.quantity || combination.quantity <= 0) {
+                throw new BadRequestException('Combination quantity must be greater than zero');
+              }
+              const combinationSourcingPrice =
+                (combination.totalProductCost + (combination.otherCost ?? 0)) /
+                combination.quantity;
+              weightedSourcingCost += combinationSourcingPrice * combination.quantity;
+
+              if (combination.skuId) {
+                const sku = await queryRunner.manager.findOne(ProductVariantSku, {
+                  where: { id: combination.skuId, productId, isDeleted: false },
+                });
+                if (!sku) throw new BadRequestException('SKU not found for the given product');
+                await queryRunner.manager.update(
+                  ProductVariantSku,
+                  { id: sku.id, isDeleted: false },
+                  {
+                    stockQuantity: (sku.stockQuantity || 0) + combination.quantity,
+                    sourcingPrice: combinationSourcingPrice,
+                  },
+                );
+              } else if (combination.variantId) {
+                const variant = await queryRunner.manager.findOne(ProductVariantOption, {
+                  where: { id: combination.variantId, productId, isDeleted: false },
+                });
+                if (!variant) {
+                  throw new BadRequestException('Variant not found for the given product');
+                }
+                await queryRunner.manager.update(
+                  ProductVariantOption,
+                  { id: variant.id, isDeleted: false },
+                  { stockQuantity: (variant.stockQuantity || 0) + combination.quantity },
+                );
+              } else {
+                throw new BadRequestException('A SKU or variant is required for each combination');
+              }
+            }
+
+            const currentStock = existingProduct.stock || 0;
+            const updatedStock = currentStock + itemQuantity;
+            const updatedSourcingPrice = updatedStock > 0
+              ? ((existingProduct.sourcingPrice || 0) * currentStock + weightedSourcingCost) /
+                updatedStock
+              : weightedSourcingCost / itemQuantity;
+            await queryRunner.manager.update(
+              Product,
+              { id: productId, isDeleted: false },
+              { stock: updatedStock, sourcingPrice: updatedSourcingPrice },
+            );
+          } else if (item.skuId) {
+            // Legacy single-combination payloads remain supported.
             const sku = await queryRunner.manager.findOne(ProductVariantSku, {
               where: { id: item.skuId, productId, isDeleted: false },
             });
@@ -114,10 +172,12 @@ export class PurchaseService extends BaseService<Purchase> {
             );
           }
 
-          if (!item.skuId) {
+          if (!combinations.length && !item.skuId) {
             await this.productService.updateSourcingPrice(item.productId, calculatedSourcingPrice);
           }
-          await this.productService.updateStock(item.productId, item.quantity);
+          if (!combinations.length) {
+            await this.productService.updateStock(item.productId, item.quantity);
+          }
         } else {
           const productCode = item.productCode?.trim();
           if (!productCode) {
@@ -193,15 +253,19 @@ export class PurchaseService extends BaseService<Purchase> {
 
           if (combinations.length) {
             for (const combination of combinations) {
+              if (!combination.productCode?.trim()) {
+                throw new BadRequestException('SKU code is required for each new product combination');
+              }
               const combinationSourcingPrice =
                 (combination.totalProductCost + (combination.otherCost ?? 0)) /
                 combination.quantity;
-              await this.upsertPurchasedSku(queryRunner.manager, productId, {
+              const savedSku = await this.upsertPurchasedSku(queryRunner.manager, productId, {
                 productCode: combination.productCode.trim(),
                 sourcingPrice: combinationSourcingPrice,
                 sellingPrice: combinationSourcingPrice,
                 stockQuantity: combination.quantity,
-              }, combination.values);
+              }, combination.values ?? []);
+              combination.skuId = savedSku.id;
             }
           }
         }
@@ -236,20 +300,39 @@ export class PurchaseService extends BaseService<Purchase> {
       const purchaseItems: PurchaseItem[] = [];
 
       for (const item of resolvedItems) {
-        const purchaseItem = queryRunner.manager.create(PurchaseItem, {
-          purchaseId: savedPurchase.id,
-          productId: item.productId,
-          variantId: item.variantId ?? null,
-          skuId: item.skuId ?? null,
-          productName: item.productName,
-          quantity: item.quantity,
-          totalProductCost: item.totalProductCost,
-          otherCost: item.otherCost,
-          calculatedSourcingPrice: item.calculatedSourcingPrice,
-        });
+        const combinations = item.combinations ?? [];
+        const purchaseLines = combinations.length
+          ? combinations.map((combination) => ({
+              variantId: combination.variantId ?? null,
+              skuId: combination.skuId ?? null,
+              productName: combination.name ?? item.productName,
+              quantity: combination.quantity,
+              totalProductCost: combination.totalProductCost,
+              otherCost: combination.otherCost ?? 0,
+              calculatedSourcingPrice:
+                (combination.totalProductCost + (combination.otherCost ?? 0)) /
+                combination.quantity,
+            }))
+          : [
+              {
+                variantId: item.variantId ?? null,
+                skuId: item.skuId ?? null,
+                productName: item.productName,
+                quantity: item.quantity,
+                totalProductCost: item.totalProductCost,
+                otherCost: item.otherCost,
+                calculatedSourcingPrice: item.calculatedSourcingPrice,
+              },
+            ];
 
-        const savedItem = await queryRunner.manager.save(purchaseItem);
-        purchaseItems.push(savedItem);
+        for (const line of purchaseLines) {
+          const purchaseItem = queryRunner.manager.create(PurchaseItem, {
+            purchaseId: savedPurchase.id,
+            productId: item.productId,
+            ...line,
+          });
+          purchaseItems.push(await queryRunner.manager.save(purchaseItem));
+        }
       }
 
       if (dueAmount > 0) {

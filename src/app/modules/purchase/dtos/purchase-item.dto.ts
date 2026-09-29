@@ -15,10 +15,20 @@ export class PurchaseCombinationDTO {
   name?: string;
 
   @ApiProperty({ type: String, required: true })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MaxLength(100)
-  productCode!: string;
+  productCode?: string;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  skuId?: string;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  variantId?: string;
 
   @ApiProperty({ type: Number, required: true })
   @IsNotEmpty()
@@ -42,10 +52,11 @@ export class PurchaseCombinationDTO {
   otherCost?: number;
 
   @ApiProperty({ type: [ProductVariantSkuValueDTO], required: true })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProductVariantSkuValueDTO)
-  values!: ProductVariantSkuValueDTO[];
+  values?: ProductVariantSkuValueDTO[];
 }
 
 export class PurchaseItemDTO {
