@@ -60,22 +60,27 @@ export class ProfitService {
         (SELECT COALESCE(SUM(s."grandTotal"), 0)
           FROM "sales" s
           WHERE s."isActive" = true
+            AND s."isDeleted" = false
             AND ($1::date IS NULL OR s."date" >= $1)
             AND ($2::date IS NULL OR s."date" <= $2)) AS "totalIncome",
         (SELECT COALESCE(SUM(si."sourcingPrice" * si."quantity"), 0)
           FROM "sale_items" si
           INNER JOIN "sales" s ON s."id" = si."saleId"
           WHERE s."isActive" = true
+            AND s."isDeleted" = false
+            AND si."isDeleted" = false
             AND ($1::date IS NULL OR s."date" >= $1)
             AND ($2::date IS NULL OR s."date" <= $2)) AS "totalCostOfGoodsSold",
         (SELECT COALESCE(SUM(e."amountSpent"), 0)
           FROM "expenses" e
           WHERE e."isActive" = true
+            AND e."isDeleted" = false
             AND ($1::date IS NULL OR e."date" >= $1)
             AND ($2::date IS NULL OR e."date" <= $2)) AS "totalExpense",
         (SELECT COALESCE(SUM(p."totalPurchaseAmount"), 0)
           FROM "purchases" p
           WHERE p."isActive" = true
+            AND p."isDeleted" = false
             AND ($1::date IS NULL OR p."purchaseDate" >= $1)
             AND ($2::date IS NULL OR p."purchaseDate" <= $2)) AS "totalPurchase"
       `,
@@ -154,8 +159,9 @@ export class ProfitService {
           )::double precision AS "profit"
         FROM "sales" s
         LEFT JOIN "customers" c ON c."id" = s."customerId"
-        LEFT JOIN "sale_items" si ON si."saleId" = s."id"
+        LEFT JOIN "sale_items" si ON si."saleId" = s."id" AND si."isDeleted" = false
         WHERE s."isActive" = true
+          AND s."isDeleted" = false
           AND ($1::date IS NULL OR s."date" >= $1)
           AND ($2::date IS NULL OR s."date" <= $2)
           AND ($3::text IS NULL OR s."paymentMethod" = $3)
@@ -184,10 +190,7 @@ export class ProfitService {
     ];
 
     const [rows, countRows] = await Promise.all([
-      this.dataSource.query(
-        `${base} ORDER BY t."date" DESC, t.id DESC LIMIT $4 OFFSET $5`,
-        params,
-      ),
+      this.dataSource.query(`${base} ORDER BY t."date" DESC, t.id DESC LIMIT $4 OFFSET $5`, params),
       this.dataSource.query(
         `SELECT COUNT(*)::int AS "total" FROM ( ${base} ) sub`,
         params.slice(0, 3),

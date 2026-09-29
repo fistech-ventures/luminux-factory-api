@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { BaseEntity, IBaseService, IMultipleSort } from '@src/app/base';
-import { findAllByRepo } from '@src/shared/utils/dborm.utils';
+import { findAllByRepo, pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 import {
   DeepPartial,
   FindManyOptions,
@@ -15,7 +15,7 @@ import { IFindBaseOptions } from '../interfaces';
 import { SuccessResponse } from '../types';
 
 export abstract class BaseService<T extends BaseEntity> implements IBaseService<T> {
-  constructor(public repo: Repository<T>) { }
+  constructor(public repo: Repository<T>) {}
 
   public async find(options?: FindManyOptions<T>): Promise<T[]> {
     return this.repo.find(options);
@@ -70,7 +70,7 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
   async findAllBase(
     filters: T & {
       searchTerm?: string;
-      initialLoadIds?: string[],
+      initialLoadIds?: string[];
       limit?: number;
       page?: number;
       sortBy?: string;
@@ -84,12 +84,14 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
 
   async findByIdBase(id: string, options?: IFindBaseOptions<T>): Promise<T> {
     const opts: FindOneOptions = {
-      where: { id },
+      // Deletion is always a soft delete (hard deletes are blocked by database
+      // triggers), so a soft-deleted row must never be returned by id.
+      where: { id, isDeleted: false },
     };
     if (options?.select) opts.select = { createdAt: true, ...options?.select };
     if (options?.relations) opts.relations = options?.relations;
 
-    return await this.repo.findOne(opts);
+    return pruneSoftDeleted(await this.repo.findOne(opts));
   }
 
   async findOneBase(filters: T, options?: IFindBaseOptions<T>): Promise<T> {
@@ -145,6 +147,9 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
   }
 
   async recoverByIdBase(id: string, options?: IFindBaseOptions<T>): Promise<T> {
+    // `recover` only clears deletedAt (the DeleteDateColumn). The isDeleted flag
+    // is what read queries filter on, so it has to be cleared as well.
+    await this.repo.update(id, { isDeleted: false } as any);
     await this.repo.recover({ id } as DeepPartial<T>);
     return await this.findByIdBase(id, options);
   }

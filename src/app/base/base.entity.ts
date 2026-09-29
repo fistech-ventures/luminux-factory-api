@@ -14,6 +14,15 @@ export abstract class BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: true })
   isActive?: boolean;
 
+  // Soft-delete flag. Every table has this column (see migrations
+  // 1791500000000-SoftDeleteAndFKFixes and 1793100000000-AddIsDeletedToAllTables)
+  // and hard deletes are blocked at the database level, so deletion is done by
+  // setting this to true. It must be declared here: TypeORM rejects
+  // `repo.update(id, { isDeleted: true })` with EntityPropertyNotFoundError when
+  // a property is missing from the entity metadata.
+  @Column({ type: ENUM_COLUMN_TYPES.BOOLEAN, default: false })
+  isDeleted?: boolean;
+
   @Column({ type: ENUM_COLUMN_TYPES.JSONB, nullable: true, default: {} })
   createdBy?: any;
 

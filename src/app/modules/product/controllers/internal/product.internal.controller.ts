@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InternalRequestInterceptor } from '@src/app/interceptors';
 import { UuidValidationPipe } from '@src/app/pipes/uuidValidation.pipe';
@@ -14,7 +24,7 @@ import { ProductService } from '../../services/product.service';
 @UseInterceptors(InternalRequestInterceptor)
 @Controller('internal/products')
 export class ProductInternalController {
-  constructor(private readonly service: ProductService) { }
+  constructor(private readonly service: ProductService) {}
 
   @Get()
   async findAll(@Query() query: ProductFilterDTO): Promise<SuccessResponse<Product[]>> {
@@ -23,7 +33,11 @@ export class ProductInternalController {
 
   @Get('by-code/:productCode')
   async findByCode(@Param('productCode') productCode: string): Promise<Product> {
-    return this.service.findOneBase({ productCode } as any, { relations: this.service.RELATIONS });
+    // findOneBase() is a raw lookup helper, so the soft-delete filter is
+    // explicit here to keep deleted products out of the response.
+    return this.service.findOneBase({ productCode, isDeleted: false } as any, {
+      relations: this.service.RELATIONS,
+    });
   }
 
   @Get(':id')

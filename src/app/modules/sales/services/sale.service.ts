@@ -19,6 +19,7 @@ import {
   Repository,
 } from 'typeorm';
 import { ENUM_CUSTOMER_TYPES } from '@src/shared';
+import { pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 import { SaleItemDTO } from '../dtos/sale-item.dto';
 import { CreateSaleDTO } from '../dtos/create.dto';
 import { UpdateSaleDTO } from '../dtos/update.dto';
@@ -56,7 +57,15 @@ export class SaleService extends BaseService<Sale> {
     const queryRunner = await startTransaction(this.dataSource);
 
     try {
-      const { items, discount, paidAmount, shippingTo, shippingAddress, shippingContact, ...restPayload } = payload;
+      const {
+        items,
+        discount,
+        paidAmount,
+        shippingTo,
+        shippingAddress,
+        shippingContact,
+        ...restPayload
+      } = payload;
 
       // Customer type (B2B / B2C) drives the per-product average selling price.
       const customer = await queryRunner.manager.findOne(Customer, {
@@ -182,7 +191,10 @@ export class SaleService extends BaseService<Sale> {
       try {
         await this.invoiceService.generateAndStoreInvoice(savedSale.id);
       } catch (invoiceError) {
-        console.error('Invoice generation failed after sale commit, sale saved without invoiceUrl:', invoiceError);
+        console.error(
+          'Invoice generation failed after sale commit, sale saved without invoiceUrl:',
+          invoiceError,
+        );
         // Re-throw so the API caller knows the invoice is missing and can
         // retry via GET /internal/sales/:id/invoice.
         throw new Error(`Invoice generation failed: ${(invoiceError as Error).message}`);
@@ -239,10 +251,7 @@ export class SaleService extends BaseService<Sale> {
 
       // Recalculate totals if items are provided
       if (items && items.length > 0) {
-        newSubtotal = items.reduce(
-          (sum, item) => sum + item.sellingPrice * item.quantity,
-          0,
-        );
+        newSubtotal = items.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
         const discount = payload.discount ?? existingSale.discount;
         newGrandTotal = newSubtotal - discount;
         newPaidAmount = paidAmount ?? existingSale.paidAmount;
@@ -282,11 +291,12 @@ export class SaleService extends BaseService<Sale> {
         where: {
           referenceId: id,
           referenceType: 'sale',
+          isDeleted: false,
         },
       });
 
-      const dueEntry = existingLedgerEntries.find(e => e.type === 'due');
-      const paidEntry = existingLedgerEntries.find(e => e.type === 'paid');
+      const dueEntry = existingLedgerEntries.find((e) => e.type === 'due');
+      const paidEntry = existingLedgerEntries.find((e) => e.type === 'paid');
 
       // Payments recorded separately against this sale already exist as their
       // own ledger entries (referenceType 'payment') and are rolled into the
@@ -294,7 +304,7 @@ export class SaleService extends BaseService<Sale> {
       // carries what was paid at the time of sale. Otherwise the same money is
       // credited to the customer twice.
       const linkedPayments = await queryRunner.manager.find(Payment, {
-        where: { referenceId: id, referenceType: 'sale' },
+        where: { referenceId: id, referenceType: 'sale', isDeleted: false },
       });
       const separatelyPaidTotal = linkedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       if (newPaidAmount < separatelyPaidTotal) {
@@ -376,7 +386,7 @@ export class SaleService extends BaseService<Sale> {
 
     try {
       const linkedPayments = await queryRunner.manager.find(Payment, {
-        where: { referenceId: id, referenceType: 'sale' },
+        where: { referenceId: id, referenceType: 'sale', isDeleted: false },
       });
 
       for (const payment of linkedPayments) {
@@ -386,28 +396,48 @@ export class SaleService extends BaseService<Sale> {
       }
 
       // Soft-delete payments instead of hard-deleting them.
-      await queryRunner.manager.update(Payment, { referenceId: id, referenceType: 'sale' }, { isDeleted: true });
+      await queryRunner.manager.update(
+        Payment,
+        { referenceId: id, referenceType: 'sale' },
+        { isDeleted: true },
+      );
       // Soft-delete ledger entries for the sale.
-      await queryRunner.manager.update(Ledger, { referenceId: id, referenceType: 'sale' }, { isDeleted: true });
+      await queryRunner.manager.update(
+        Ledger,
+        { referenceId: id, referenceType: 'sale' },
+        { isDeleted: true },
+      );
 
       for (const item of sale.items || []) {
         if (item.skuId) {
           // Restore stock instead of decrementing (since we're not hard-deleting the SKU)
-          await queryRunner.manager.update(ProductVariantSku, { id: item.skuId }, {
-            stockQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
-            saleQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
-          });
+          await queryRunner.manager.update(
+            ProductVariantSku,
+            { id: item.skuId },
+            {
+              stockQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
+              saleQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
+            },
+          );
         } else if (item.variantId) {
-          await queryRunner.manager.update(ProductVariantOption, { id: item.variantId }, {
-            stockQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
-            saleQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
-          });
+          await queryRunner.manager.update(
+            ProductVariantOption,
+            { id: item.variantId },
+            {
+              stockQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
+              saleQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
+            },
+          );
         }
 
-        await queryRunner.manager.update(Product, { id: item.productId }, {
-          stock: (item.productId ? 0 : 0) + (item.quantity || 0),
-          saleQuantity: (item.productId ? 0 : 0) + (item.quantity || 0),
-        });
+        await queryRunner.manager.update(
+          Product,
+          { id: item.productId },
+          {
+            stock: (item.productId ? 0 : 0) + (item.quantity || 0),
+            saleQuantity: (item.productId ? 0 : 0) + (item.quantity || 0),
+          },
+        );
       }
 
       // Soft-delete the sale instead of hard-deleting it.
@@ -424,7 +454,8 @@ export class SaleService extends BaseService<Sale> {
   async findAllWithFilters(filters: FilterSaleDTO): Promise<SuccessResponse<Sale[]>> {
     const { customerId, startDate, endDate, page, limit } = filters;
 
-    const where: FindOptionsWhere<Sale> = {};
+    // Soft-deleted sales are never listed.
+    const where: FindOptionsWhere<Sale> = { isDeleted: false };
 
     if (customerId) {
       where.customerId = customerId;
@@ -449,7 +480,7 @@ export class SaleService extends BaseService<Sale> {
       take: limit,
     });
 
-    return new SuccessResponse<Sale[]>('Sales fetched successfully', data, {
+    return new SuccessResponse<Sale[]>('Sales fetched successfully', pruneSoftDeleted(data), {
       total,
       page: page || 1,
       limit: limit || 10,
@@ -486,14 +517,22 @@ export class SaleService extends BaseService<Sale> {
       if (unitPrice === undefined || unitPrice < 0) {
         throw new BadRequestException(`Invalid selling price for product: ${product.title}`);
       }
-      await manager.update(ProductVariantSku, { id: sku.id }, {
-        stockQuantity: (sku.stockQuantity || 0) - item.quantity,
-        saleQuantity: (sku.saleQuantity || 0) + item.quantity,
-      });
-      await manager.update(Product, { id: product.id }, {
-        stock: (product.stock || 0) - item.quantity,
-        saleQuantity: (product.saleQuantity || 0) + item.quantity,
-      });
+      await manager.update(
+        ProductVariantSku,
+        { id: sku.id },
+        {
+          stockQuantity: (sku.stockQuantity || 0) - item.quantity,
+          saleQuantity: (sku.saleQuantity || 0) + item.quantity,
+        },
+      );
+      await manager.update(
+        Product,
+        { id: product.id },
+        {
+          stock: (product.stock || 0) - item.quantity,
+          saleQuantity: (product.saleQuantity || 0) + item.quantity,
+        },
+      );
       return { unitPrice, unitCost, itemTotalAmount: unitPrice * item.quantity };
     }
 

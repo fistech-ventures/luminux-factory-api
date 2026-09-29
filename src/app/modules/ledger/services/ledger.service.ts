@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base/base.service';
+import { pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 import { SuccessResponse } from '@src/app/types';
 import {
   Between,
@@ -12,7 +13,11 @@ import {
   MoreThanOrEqual,
   Repository,
 } from 'typeorm';
-import { loadExpenses, loadPurchases, loadSales } from '@src/app/helpers/transaction-details.helper';
+import {
+  loadExpenses,
+  loadPurchases,
+  loadSales,
+} from '@src/app/helpers/transaction-details.helper';
 import { CreateLedgerDTO, UpdateLedgerDTO, FilterLedgerDTO } from '../dtos/ledger.dto';
 import { Ledger } from '../entities/ledger.entity';
 import { Customer } from '../../customer/entities/customer.entity';
@@ -89,7 +94,8 @@ export class LedgerService extends BaseService<Ledger> {
   async findAllWithFilters(filters: FilterLedgerDTO): Promise<SuccessResponse<Ledger[]>> {
     const { entityType, entityId, type, startDate, endDate, page, limit } = filters;
 
-    const where: FindOptionsWhere<Ledger> = {};
+    // Soft-deleted ledger entries are never listed.
+    const where: FindOptionsWhere<Ledger> = { isDeleted: false };
 
     if (entityType) {
       where.entityType = entityType;
@@ -122,18 +128,23 @@ export class LedgerService extends BaseService<Ledger> {
       take: limit,
     });
 
-    return new SuccessResponse<Ledger[]>('Ledger entries fetched successfully', data, {
-      total,
-      page: page || 1,
-      limit: limit || 10,
-    });
+    return new SuccessResponse<Ledger[]>(
+      'Ledger entries fetched successfully',
+      pruneSoftDeleted(data),
+      {
+        total,
+        page: page || 1,
+        limit: limit || 10,
+      },
+    );
   }
 
   async getCustomerBalance(
     customerId: string,
   ): Promise<{ totalDue: number; totalPaid: number; balance: number }> {
+    // Soft-deleted ledger entries must not affect the balance.
     const entries = await this.find({
-      where: { entityType: 'customer', entityId: customerId },
+      where: { entityType: 'customer', entityId: customerId, isDeleted: false },
     });
 
     let totalDue = 0;
@@ -160,7 +171,7 @@ export class LedgerService extends BaseService<Ledger> {
     supplierId: string,
   ): Promise<{ totalDue: number; totalPaid: number; balance: number }> {
     const entries = await this.find({
-      where: { entityType: 'supplier', entityId: supplierId },
+      where: { entityType: 'supplier', entityId: supplierId, isDeleted: false },
     });
 
     let totalDue = 0;
@@ -195,7 +206,7 @@ export class LedgerService extends BaseService<Ledger> {
     employeeId: string,
   ): Promise<{ totalAdvance: number; totalExpense: number; balance: number }> {
     const entries = await this.find({
-      where: { entityType: 'employee', entityId: employeeId },
+      where: { entityType: 'employee', entityId: employeeId, isDeleted: false },
     });
 
     let totalAdvance = 0;
@@ -218,7 +229,10 @@ export class LedgerService extends BaseService<Ledger> {
 
   async getBalanceSummary(): Promise<{ customerDue: number; supplierDue: number }> {
     const entries = await this.find({
-      where: [{ entityType: 'customer' }, { entityType: 'supplier' }],
+      where: [
+        { entityType: 'customer', isDeleted: false },
+        { entityType: 'supplier', isDeleted: false },
+      ],
       select: ['entityType', 'type', 'amount'],
     });
 
@@ -226,9 +240,11 @@ export class LedgerService extends BaseService<Ledger> {
       (summary, entry) => {
         const amount = Number(entry.amount || 0);
         if (entry.entityType === 'customer') {
-          summary.customerDue += entry.type === 'due' ? amount : entry.type === 'paid' ? -amount : 0;
+          summary.customerDue +=
+            entry.type === 'due' ? amount : entry.type === 'paid' ? -amount : 0;
         } else if (entry.entityType === 'supplier') {
-          summary.supplierDue += entry.type === 'due' ? amount : entry.type === 'paid' ? -amount : 0;
+          summary.supplierDue +=
+            entry.type === 'due' ? amount : entry.type === 'paid' ? -amount : 0;
         }
         return summary;
       },
@@ -263,6 +279,7 @@ export class LedgerService extends BaseService<Ledger> {
         where: {
           entityType,
           entityId,
+          isDeleted: false,
           transactionDate: LessThan(new Date(startDate)),
         },
         select: ['type', 'amount'],
@@ -298,6 +315,7 @@ export class LedgerService extends BaseService<Ledger> {
     const where: FindOptionsWhere<Ledger> = {
       entityType,
       entityId,
+      isDeleted: false,
     };
 
     if (startDate && endDate) {
@@ -431,7 +449,12 @@ export class LedgerService extends BaseService<Ledger> {
           if (resolvedSale) {
             return resolvedSale.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || null;
           } else if (resolvedPurchase) {
-            return (resolvedPurchase as any).items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || null;
+            return (
+              (resolvedPurchase as any).items?.reduce(
+                (sum, item) => sum + (item.quantity || 0),
+                0,
+              ) || null
+            );
           }
         }
         return null;
@@ -445,14 +468,22 @@ export class LedgerService extends BaseService<Ledger> {
         }
         if (isDue) {
           if (resolvedSale?.paymentMethod) return resolvedSale.paymentMethod;
-          if (resolvedPurchase && 'paymentMethod' in resolvedPurchase && resolvedPurchase.paymentMethod) {
+          if (
+            resolvedPurchase &&
+            'paymentMethod' in resolvedPurchase &&
+            resolvedPurchase.paymentMethod
+          ) {
             return (resolvedPurchase as any).paymentMethod;
           }
         } else {
           // paid row
           if (resolvedPayment?.paymentMethod) return resolvedPayment.paymentMethod;
           if (resolvedSale?.paymentMethod) return resolvedSale.paymentMethod;
-          if (resolvedPurchase && 'paymentMethod' in resolvedPurchase && resolvedPurchase.paymentMethod) {
+          if (
+            resolvedPurchase &&
+            'paymentMethod' in resolvedPurchase &&
+            resolvedPurchase.paymentMethod
+          ) {
             return (resolvedPurchase as any).paymentMethod;
           }
         }
@@ -538,8 +569,8 @@ export class LedgerService extends BaseService<Ledger> {
       debitTotal += debit;
       creditTotal += credit;
 
-      const dateStr = entry.transactionDate 
-        ? new Date(entry.transactionDate).toISOString().split('T')[0] 
+      const dateStr = entry.transactionDate
+        ? new Date(entry.transactionDate).toISOString().split('T')[0]
         : '';
 
       rows.push({

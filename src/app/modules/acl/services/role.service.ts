@@ -78,7 +78,16 @@ export class RoleService extends BaseService<Role> {
         });
 
         if (isRolePermissionExist) {
-          throw new BadRequestException('Permission already exist');
+          // Standard lookups include soft-deleted rows, so a previously removed
+          // permission looks present. Revive it instead of throwing a false error.
+          if (isRolePermissionExist.isDeleted) {
+            await this.rolePermissionService.updateOneBase(
+              isRolePermissionExist.id,
+              { isDeleted: false },
+            );
+          } else {
+            throw new BadRequestException('Permission already exist');
+          }
         }
         await queryRunner.manager.save(
           Object.assign(new RolePermission(), {

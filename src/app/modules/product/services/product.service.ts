@@ -9,7 +9,7 @@ import { ProductUpdateDTO, ProductVariantSkuUpdateDTO } from '../dtos/product/up
 import { Product } from '../entities/product.entity';
 import { ProductVariantOption } from '../entities/productVariantOption.entity';
 import { ProductVariantSku } from '../entities/productVariantSku.entity';
-import { ProductVariantSkuValue } from '../entities/productVariantSkuValue.entity';
+import { ProductVariantSkuValue } from '../entities/productVariantSku NULLe.entity';
 
 @Injectable()
 export class ProductService extends BaseService<Product> {
@@ -105,48 +105,67 @@ export class ProductService extends BaseService<Product> {
     if (variants?.length) {
       const queryRunner = this._repo.manager.queryRunner;
       if (!queryRunner) {
-        throw new BadRequestException('No active query runner. Please use the service inside a transaction.');
+        throw new BadRequestException(
+          'No active query runner. Please use the service inside a transaction.',
+        );
       }
       await queryRunner.startTransaction();
       try {
         for (const variant of variants) {
           if (variant.isDeleted) {
             if (!variant.id) {
-              throw new BadRequestException('Cannot delete a variant option that has no id. Add a new option instead.');
+              throw new BadRequestException(
+                'Cannot delete a variant option that has no id. Add a new option instead.',
+              );
             }
 
+            // Deletions represent the same logical row, so look up by the
+            // underlying variant option id — and include soft-deleted rows
+            // so we can check the references even for one the UI had removed.
             const inUse = await queryRunner.manager.findOne(ProductVariantOption, {
-              where: { id: variant.id, productId: id },
+              where: { variantOptionId: variant.id, productId: id },
             });
 
             if (inUse) {
               throw new BadRequestException(
-                'Cannot delete variant option because it is still referenced by an existing product combination. Use a soft delete or remove the reference from the product first.',
+                'Cannot delete a variant option because it is still referenced by an existing product combination. Remove the reference from the product first.',
               );
             }
 
             // Soft-delete instead of hard delete.
             await queryRunner.manager.update(
               ProductVariantOption,
-              { id: variant.id, productId: id },
+              { entityId: variant.id, productId: id },
               { isDeleted: true },
             );
           } else {
             const option = await queryRunner.manager.findOne(ProductVariantOption, {
               where: variant.id
                 ? { id: variant.id, productId: id }
-                : { productId: id, variantId: variant.variantId, variantOptionId: variant.variantOptionId },
+                : {
+                    productId: id,
+                    variantId: variant.variantId,
+                    variantOptionId: variant.variantOptionId,
+                  },
             });
 
             if (option) {
-              await queryRunner.manager.update(ProductVariantOption, { id: option.id }, {
-                sku: variant.sku ?? option.sku,
-                sellingPrice: variant.sellingPrice ?? option.sellingPrice ?? 0,
-                stockQuantity: variant.stockQuantity ?? option.stockQuantity ?? 0,
-                position: variant.position ?? option.position ?? 0,
-                variantId: variant.variantId ?? option.variantId,
-                variantOptionId: variant.variantOptionId ?? option.variantOptionId,
-              });
+              // `findOne` returns soft-deleted rows too, so a re-add of a
+              // previously removed option finds it here. Revive it, otherwise the
+              // row would stay invisible after the user sent it back above.
+              await queryRunner.manager.update(
+                ProductVariantOption,
+                { id: option.id },
+                {
+                  sku: variant.sku ?? option.sku,
+                  sellingPrice: variant.sellingPrice ?? option.sellingPrice ?? 0,
+                  stockQuantity: variant.stockQuantity ?? option.stockQuantity ?? 0,
+                  position: variant.position ?? option.position ?? 0,
+                  variantId: variant.variantId ?? option.variantId,
+                  variantOptionId: variant.variantOptionId ?? option.variantOptionId,
+                  isDeleted: false,
+                },
+              );
             } else {
               await queryRunner.manager.save(
                 Object.assign(new ProductVariantOption(), {
@@ -214,8 +233,11 @@ export class ProductService extends BaseService<Product> {
   }
 
   async assertUniqueSkuCode(code: string, excludeId?: string): Promise<void> {
-    const existing = await this._repo.manager.findOne(ProductVariantSku, { where: { productCode: code } });
-    if (existing && existing.id !== excludeId) throw new BadRequestException(`SKU code already exists: ${code}`);
+    const existing = await this._repo.manager.findOne(ProductVariantSku, {
+      where: { productCode: code },
+    });
+    if (existing && existing.id !== excludeId)
+      throw new BadRequestException(`SKU code already exists: ${code}`);
   }
 
   private async saveSkus(productId: string, skus: ProductVariantSkuDTO[]): Promise<void> {
@@ -233,11 +255,13 @@ export class ProductService extends BaseService<Product> {
         productId,
       });
       await this._repo.manager.save(
-        values.map((value, position) => this._repo.manager.create(ProductVariantSkuValue, {
-          ...value,
-          position,
-          skuId: savedSku.id,
-        })),
+        values.map((value, position) =>
+          this._repo.manager.create(ProductVariantSkuValue, {
+            ...value,
+            position,
+            skuId: savedSku.id,
+          }),
+        ),
       );
     }
   }
@@ -245,14 +269,18 @@ export class ProductService extends BaseService<Product> {
   private async updateSkus(productId: string, skus: ProductVariantSkuUpdateDTO[]): Promise<void> {
     const queryRunner = this._repo.manager.queryRunner;
     if (!queryRunner) {
-      throw new BadRequestException('No active query runner. Please use the service inside a transaction.');
+      throw new BadRequestException(
+        'No active query runner. Please use the service inside a transaction.',
+      );
     }
     await queryRunner.startTransaction();
     try {
       for (const sku of skus) {
         if (sku.isDeleted) {
           if (!sku.id) {
-            throw new BadRequestException('Cannot delete a SKU that has no id. Add a new SKU instead.');
+            throw new BadRequestException(
+              'Cannot delete a SKU that has no id. Add a new SKU instead.',
+            );
           }
           const existingSku = await queryRunner.manager.findOne(ProductVariantSku, {
             where: { id: sku.id, productId },
@@ -277,8 +305,16 @@ export class ProductService extends BaseService<Product> {
           ? await queryRunner.manager.findOne(ProductVariantSku, { where: { id, productId } })
           : undefined;
         const savedSku = existing
-          ? await queryRunner.manager.save(ProductVariantSku, { ...existing, ...skuData, productCode: code })
-          : await queryRunner.manager.save(ProductVariantSku, { ...skuData, productCode: code, productId });
+          ? await queryRunner.manager.save(ProductVariantSku, {
+              ...existing,
+              ...skuData,
+              productCode: code,
+            })
+          : await queryRunner.manager.save(ProductVariantSku, {
+              ...skuData,
+              productCode: code,
+              productId,
+            });
 
         // Replace values but soft-delete any that are no longer referenced.
         if (values?.length) {
@@ -298,30 +334,36 @@ export class ProductService extends BaseService<Product> {
           }
 
           for (const value of values) {
-            const existingValue = currentValues.find((v) => v.variantOptionId === value.variantOptionId);
+            const existingValue = currentValues.find(
+              (v) => v.variantOptionId === value.variantOptionId,            });
+
             if (existingValue) {
+              // same as above: the find() above returned this row from a previous
+              // "delete", so save the re-add as a revival instead of a silent
+              // invisible update.
               await queryRunner.manager.update(
                 ProductVariantSkuValue,
+
                 { id: existingValue.id },
-                { variantId: value.variantId, variantOptionId: value.variantOptionId },
-              );
+                {              variantId: value.variantId,
+              variantOptionId: value.variantOptionId,
+
+              isDeleted: false },
+            );
             } else {
-              await queryRunner.manager.save(
-                ProductVariantSkuValue,
-                {
-                  ...value,
-                  position: values.findIndex((v) => v.variantOptionId === value.variantOptionId),
-                  skuId: savedSku.id,
-                },
-              );
+              await queryRunner.manager.save(ProductVariantSkuValue, {
+                ...value,
+                position: values.findIndex((v) => v.variantOptionId === value.variantOptionId),
+                skuId: savedSku.id,
+              });
             }
           }
         } else {
           // SKU has no values defined: soft-delete all existing values.
-          const currentValues = await queryRunner.manager.find(ProductVariantSkuValue, {
+          const current NULLes = await queryRunner.manager.find(ProductVariantSkuValue, {
             where: { skuId: savedSku.id },
           });
-          for (const current of currentValues) {
+          for (const current of current NULLes) {
             await queryRunner.manager.update(
               ProductVariantSkuValue,
               { id: current.id },
@@ -333,13 +375,14 @@ export class ProductService extends BaseService<Product> {
 
       // Recompute stock from the remaining active SKU rows only.
       const skuRows = await queryRunner.manager.find(ProductVariantSku, {
-        where: { productId },
+        where: { productId, isDeleted: false },
         select: { id: true, stockQuantity: true },
       });
       const totalStock = skuRows.reduce((sum, sku) => sum + (sku.stockQuantity || 0), 0);
       await this.updateOneBase(productId, { stock: totalStock } as any);
 
-      await queryRunner.commitTransaction();      } catch (_error) {
+      await queryRunner.commitTransaction();
+    } catch (_error) {
       await queryRunner.rollbackTransaction();
       throw new BadRequestException('Something went wrong while saving SKU data!');
     } finally {
@@ -351,11 +394,12 @@ export class ProductService extends BaseService<Product> {
     const variants = new Set<string>();
     const options = new Set<string>();
     for (const value of values) {
-      if (variants.has(value.variantId)) throw new BadRequestException('A SKU cannot repeat an attribute');
-      if (options.has(value.variantOptionId)) throw new BadRequestException('A SKU cannot repeat an option');
+      if (variants.has(value.variantId))
+        throw new BadRequestException('A SKU cannot repeat an attribute');
+      if (options.has(value.variantOptionId))
+        throw new BadRequestException('A SKU cannot repeat an option');
       variants.add(value.variantId);
       options.add(value.variantOptionId);
     }
   }
-
 }

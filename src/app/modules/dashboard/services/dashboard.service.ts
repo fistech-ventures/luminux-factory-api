@@ -79,10 +79,12 @@ export class DashboardService {
       this.summaryByDate(this.expenseRepo, 'amountSpent', 'date', today, today),
       this.dataSource
         .query(
+          // Soft-deleted products must not count towards the stock valuation.
           `SELECT COUNT(*)::int AS "count",
                   COALESCE(SUM(p."stock" * p."sourcingPrice"), 0) AS "valuation"
            FROM "products" p
-           WHERE p."isActive" = true`,
+           WHERE p."isActive" = true
+             AND p."isDeleted" = false`,
         )
         .then((rows: any[]) => rows?.[0] || { count: '0', valuation: '0' }),
       this.dataSource.query(
@@ -92,6 +94,7 @@ export class DashboardService {
                COUNT(*)::int AS "count"
         FROM "sales" s
         WHERE s."isActive" = true
+          AND s."isDeleted" = false
           AND s."date" >= $1
           AND s."date" <= $2
         GROUP BY s."date"
@@ -108,8 +111,9 @@ export class DashboardService {
                  2
                )::double precision AS "profit"
         FROM "sales" s
-        LEFT JOIN "sale_items" si ON si."saleId" = s."id"
+        LEFT JOIN "sale_items" si ON si."saleId" = s."id" AND si."isDeleted" = false
         WHERE s."isActive" = true
+          AND s."isDeleted" = false
           AND s."date" >= $1
           AND s."date" <= $2
         GROUP BY s."date"
@@ -118,7 +122,7 @@ export class DashboardService {
         [rangeStart, rangeEnd],
       ),
       this.saleRepo.find({
-        where: { isActive: true },
+        where: { isActive: true, isDeleted: false },
         relations: this.saleRelations,
         order: { createdAt: 'DESC' },
         take: recentLimit,
@@ -199,6 +203,7 @@ export class DashboardService {
       `SELECT COALESCE(SUM(e."${amountColumn}"), 0) AS "amount", COUNT(*)::int AS "count"
        FROM "${table}" e
        WHERE e."isActive" = true
+         AND e."isDeleted" = false
        ${hasRange ? `AND e."${dateColumn}" >= $1 AND e."${dateColumn}" <= $2` : ''}`,
       hasRange ? [fromDate, toDate] : [],
     );

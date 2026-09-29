@@ -229,8 +229,18 @@ export class UserService extends BaseService<User> {
             },
           });
 
-          if (isUserRoleExist)
-            throw new ConflictException(`User already has the ${isRoleExist?.title} role!`);
+          if (isUserRoleExist) {
+            // Standard lookups include soft-deleted rows, so a previously removed
+            // role looks present. Revive it instead of throwing a false conflict.
+            if (isUserRoleExist.isDeleted) {
+              await this._repo.manager.update(UserRole, {
+                userId: id,
+                roleId: role.role,
+              }, { isDeleted: false } as any);
+            } else {
+              throw new ConflictException(`User already has the ${isRoleExist?.title} role!`);
+            }
+          }
           else {
             await queryRunner.manager.save(
               Object.assign(new UserRole(), {

@@ -106,11 +106,46 @@ const getSearchScore = (item: unknown, searchTerms: string[], searchTerm: string
   }, 0);
 };
 
+/**
+ * Removes soft-deleted rows (`isDeleted === true`) from a result graph.
+ *
+ * Deletion in this application is always a soft delete — hard deletes are
+ * blocked by database triggers — so a row with `isDeleted = true` must never be
+ * part of an API response, neither as the returned row itself nor nested inside
+ * a relation (e.g. a product's variants). TypeORM cannot filter loaded relations
+ * with a `where`, hence this post-processing step.
+ */
+export const pruneSoftDeleted = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value
+      .filter(
+        (item) =>
+          !(
+            item &&
+            typeof item === 'object' &&
+            (item as { isDeleted?: boolean }).isDeleted === true
+          ),
+      )
+      .map((item) => pruneSoftDeleted(item)) as unknown as T;
+  }
+
+  if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      record[key] = pruneSoftDeleted(record[key]);
+    }
+  }
+
+  return value;
+};
+
 const sortPositionedArrays = <T>(value: T): T => {
   if (!value || typeof value !== 'object') return value;
   if (Array.isArray(value)) {
     value.forEach(sortPositionedArrays);
-    if (value.every((item) => item && typeof item === 'object' && typeof item.position === 'number')) {
+    if (
+      value.every((item) => item && typeof item === 'object' && typeof item.position === 'number')
+    ) {
       value.sort((left, right) => left.position - right.position);
     }
     return value as T;
@@ -123,7 +158,7 @@ export async function findAllByRepo<T extends BaseEntity>(
   repo: Repository<T>,
   filters: T & {
     searchTerm?: string;
-    initialLoadIds?: string[],
+    initialLoadIds?: string[];
     limit?: number;
     page?: number;
     sortBy?: string;
@@ -148,6 +183,16 @@ export async function findAllByRepo<T extends BaseEntity>(
   } = filters;
   const skip = (page - 1) * take;
 
+  // Soft-deleted rows must never be listed by default. The filter is applied at
+  // the query level so pagination (total / skip / take) stays accurate instead
+  // of trimming rows off an already-paginated page, and the same flag drives the
+  // relation pruning further down. A caller that explicitly filters on
+  // `isDeleted` (e.g. an admin "show deleted" view) keeps full control and gets
+  // raw rows, so the two halves of this behaviour can never disagree.
+  const hideSoftDeleted = !('isDeleted' in (queryOptions as Record<string, unknown>));
+  const softDeleteWhere: { isDeleted?: boolean } = hideSoftDeleted ? { isDeleted: false } : {};
+  Object.assign(queryOptions as Record<string, unknown>, softDeleteWhere);
+
   // Date-range filtering. startDate/endDate come from BaseFilterDTO and are not
   // entity columns, so strip them from the where clause and apply a real range
   // on the entity's business date column (DATE_FILTER_COLUMN) when one is
@@ -158,11 +203,7 @@ export async function findAllByRepo<T extends BaseEntity>(
     if (!dateColumn) {
       try {
         const targetValue = repo.target?.valueOf();
-        if (
-          targetValue &&
-          typeof targetValue === 'object' &&
-          'DATE_FILTER_COLUMN' in targetValue
-        ) {
+        if (targetValue && typeof targetValue === 'object' && 'DATE_FILTER_COLUMN' in targetValue) {
           dateColumn = (targetValue as any).DATE_FILTER_COLUMN;
         }
       } catch (_e) {
@@ -201,7 +242,8 @@ export async function findAllByRepo<T extends BaseEntity>(
     initialData = await repo.find({
       where: {
         id: In(initialLoadIds) as any,
-      },
+        ...softDeleteWhere,
+      } as FindOptionsWhere<T>,
       relations: options?.relations,
       select: options?.select,
     });
@@ -228,7 +270,7 @@ export async function findAllByRepo<T extends BaseEntity>(
   if (hasSearchTerm) {
     try {
       let SEARCH_TERMS = options?.SEARCH_TERMS;
-      
+
       if (!SEARCH_TERMS) {
         // Try to get SEARCH_TERMS from the entity
         try {
@@ -245,62 +287,61 @@ export async function findAllByRepo<T extends BaseEntity>(
           SEARCH_TERMS = [];
         }
       }
-      
+
       if (!SEARCH_TERMS) {
         SEARCH_TERMS = [];
       }
       searchTermsForScore = SEARCH_TERMS;
-      
-      if (SEARCH_TERMS.length > 0) {
-          if (Object.keys(queryOptions).length) {
-            SEARCH_TERMS = SEARCH_TERMS.filter(
-              (term: string) => !Object.keys(queryOptions).includes(term),
-            );
-          }
 
-          const where = [];
-          for (const term of SEARCH_TERMS) {
-            // Check if the search term is a relation
-            if (term?.includes('.')) {
-              const [relation, ...fieldPath] = term.split('.');
-              // Check if the relation is allowed
-              if (!relations.includes(relation)) {
-                continue;
-              }
-              let nestedField: unknown = ILike(`%${searchTerm}%`);
-              for (let index = fieldPath.length - 1; index >= 0; index -= 1) {
-                nestedField = { [fieldPath[index]]: nestedField };
-              }
-              where.push({
-                ...queryOptions,
-                [relation]: {
-                  ...(nestedField as Record<string, unknown>),
-                },
-              });
-            } else if (term?.includes(':')) {
-              const [field, property] = term.split(':');
-              // search on jsonb property
-              where.push({
-                ...queryOptions,
-                [field]: Raw((alias) => `${alias} ->> '${property}' ILIKE '%${searchTerm}%'`),
-              });
-            } else {
-              where.push({
-                ...queryOptions,
-                [term]: ILike(`%${searchTerm}%`),
-              });
+      if (SEARCH_TERMS.length > 0) {
+        if (Object.keys(queryOptions).length) {
+          SEARCH_TERMS = SEARCH_TERMS.filter(
+            (term: string) => !Object.keys(queryOptions).includes(term),
+          );
+        }
+
+        const where = [];
+        for (const term of SEARCH_TERMS) {
+          // Check if the search term is a relation
+          if (term?.includes('.')) {
+            const [relation, ...fieldPath] = term.split('.');
+            // Check if the relation is allowed
+            if (!relations.includes(relation)) {
+              continue;
             }
+            let nestedField: unknown = ILike(`%${searchTerm}%`);
+            for (let index = fieldPath.length - 1; index >= 0; index -= 1) {
+              nestedField = { [fieldPath[index]]: nestedField };
+            }
+            where.push({
+              ...queryOptions,
+              [relation]: {
+                ...(nestedField as Record<string, unknown>),
+              },
+            });
+          } else if (term?.includes(':')) {
+            const [field, property] = term.split(':');
+            // search on jsonb property
+            where.push({
+              ...queryOptions,
+              [field]: Raw((alias) => `${alias} ->> '${property}' ILIKE '%${searchTerm}%'`),
+            });
+          } else {
+            where.push({
+              ...queryOptions,
+              [term]: ILike(`%${searchTerm}%`),
+            });
           }
-          
-          if (where.length > 0) {
-            opts.where = where as any;
-          }
+        }
+
+        if (where.length > 0) {
+          opts.where = where as any;
+        }
       }
     } catch (error) {
       // If SEARCH_TERMS access fails, continue without search filtering
       console.warn('Failed to access SEARCH_TERMS:', error);
     }
-
   }
 
   if (!hasSearchTerm && skip && !isNaN(skip)) opts.skip = skip;
@@ -329,12 +370,16 @@ export async function findAllByRepo<T extends BaseEntity>(
   const [allData, total] = await repo.findAndCount(opts);
   const data = hasSearchTerm
     ? allData
-        .map((item) => ({ item, score: getSearchScore(item, searchTermsForScore, searchTerm ?? '') }))
+        .map((item) => ({
+          item,
+          score: getSearchScore(item, searchTermsForScore, searchTerm ?? ''),
+        }))
         .sort((left, right) => right.score - left.score)
         .slice(skip, skip + take)
         .map(({ item }) => item)
     : allData;
-  const combinedData = [...initialData, ...data].map(sortPositionedArrays);
+  const sortedData = [...initialData, ...data].map(sortPositionedArrays);
+  const combinedData = hideSoftDeleted ? pruneSoftDeleted(sortedData) : sortedData;
 
   return new SuccessResponse<T[]>(`${repo.metadata.name} fetched successfully`, combinedData, {
     total: total,

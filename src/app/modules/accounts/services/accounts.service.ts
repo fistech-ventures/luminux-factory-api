@@ -102,6 +102,7 @@ export class AccountsService {
         `SELECT p."paymentMethod" AS "paymentMethod", p."entityType" AS "entityType", SUM(p."amount") AS "amount"
          FROM "payments" p
          WHERE p."isActive" = true
+           AND p."isDeleted" = false
          GROUP BY p."paymentMethod", p."entityType"`,
       ),
     ]);
@@ -184,6 +185,7 @@ export class AccountsService {
         NULL AS "linkedReferenceId"
       FROM "sales" s
       WHERE s."isActive" = true
+        AND s."isDeleted" = false
         AND ($1::text IS NULL OR s."paymentMethod" = $1)
         AND ($2::date IS NULL OR s."date" >= $2)
         AND ($3::date IS NULL OR s."date" <= $3)
@@ -203,6 +205,7 @@ export class AccountsService {
         NULL AS "linkedReferenceId"
       FROM "purchases" p
       WHERE p."isActive" = true
+        AND p."isDeleted" = false
         AND ($1::text IS NULL OR p."paymentMethod" = $1)
         AND ($2::date IS NULL OR p."purchaseDate" >= $2)
         AND ($3::date IS NULL OR p."purchaseDate" <= $3)
@@ -222,6 +225,7 @@ export class AccountsService {
         NULL AS "linkedReferenceId"
       FROM "expenses" e
       WHERE e."isActive" = true
+        AND e."isDeleted" = false
         AND e."employeeId" IS NULL
         AND ($1::text IS NULL OR e."paymentMethod" = $1)
         AND ($2::date IS NULL OR e."date" >= $2)
@@ -247,6 +251,7 @@ export class AccountsService {
         pay."referenceId"::text AS "linkedReferenceId"
       FROM "payments" pay
       WHERE pay."isActive" = true
+        AND pay."isDeleted" = false
         AND ($1::text IS NULL OR pay."paymentMethod" = $1)
         AND ($2::date IS NULL OR pay."paymentDate" >= $2)
         AND ($3::date IS NULL OR pay."paymentDate" <= $3)
@@ -359,7 +364,8 @@ export class AccountsService {
     return this.dataSource.query(
       `SELECT e."paymentMethod" AS "paymentMethod", SUM(e."${amountColumn}") AS "amount"
        FROM "${table}" e
-       WHERE e."isActive" = true${extraWhere ? ` AND ${extraWhere}` : ''}
+       WHERE e."isActive" = true
+         AND e."isDeleted" = false${extraWhere ? ` AND ${extraWhere}` : ''}
        GROUP BY e."paymentMethod"`,
     );
   }

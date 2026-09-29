@@ -65,8 +65,7 @@ export class PurchaseService extends BaseService<Purchase> {
         const itemOtherCost = combinations.length
           ? combinations.reduce((sum, combination) => sum + (combination.otherCost ?? 0), 0)
           : item.otherCost;
-        const calculatedSourcingPrice =
-          (itemTotalProductCost + itemOtherCost) / itemQuantity;
+        const calculatedSourcingPrice = (itemTotalProductCost + itemOtherCost) / itemQuantity;
 
         let productId: string;
 
@@ -81,11 +80,7 @@ export class PurchaseService extends BaseService<Purchase> {
 
           // Update unit if provided
           if (item.unit) {
-            await queryRunner.manager.update(
-              Product,
-              { id: item.productId },
-              { unit: item.unit },
-            );
+            await queryRunner.manager.update(Product, { id: item.productId }, { unit: item.unit });
           }
 
           // Variant purchase: add stock to the specific variant option and
@@ -96,10 +91,14 @@ export class PurchaseService extends BaseService<Purchase> {
               where: { id: item.skuId, productId },
             });
             if (!sku) throw new BadRequestException('SKU not found for the given product');
-            await queryRunner.manager.update(ProductVariantSku, { id: sku.id }, {
-              stockQuantity: (sku.stockQuantity || 0) + item.quantity,
-              sourcingPrice: calculatedSourcingPrice,
-            });
+            await queryRunner.manager.update(
+              ProductVariantSku,
+              { id: sku.id },
+              {
+                stockQuantity: (sku.stockQuantity || 0) + item.quantity,
+                sourcingPrice: calculatedSourcingPrice,
+              },
+            );
           } else if (item.variantId) {
             const variant = await queryRunner.manager.findOne(ProductVariantOption, {
               where: { id: item.variantId, productId },
@@ -130,10 +129,10 @@ export class PurchaseService extends BaseService<Purchase> {
           const detailedStock = combinations.length
             ? itemQuantity
             : item.skus?.length
-            ? item.skus.reduce((sum, sku) => sum + (sku.stockQuantity || 0), 0)
-            : item.variants?.length
-              ? item.variants.reduce((sum, variant) => sum + (variant.stockQuantity || 0), 0)
-              : itemQuantity;
+              ? item.skus.reduce((sum, sku) => sum + (sku.stockQuantity || 0), 0)
+              : item.variants?.length
+                ? item.variants.reduce((sum, variant) => sum + (variant.stockQuantity || 0), 0)
+                : itemQuantity;
           const newProduct = ProductFactory.createProduct(
             productCode,
             item.productName,
@@ -339,11 +338,12 @@ export class PurchaseService extends BaseService<Purchase> {
         where: {
           referenceId: id,
           referenceType: 'purchase',
+          isDeleted: false,
         },
       });
 
-      const dueEntry = existingLedgerEntries.find(e => e.type === 'due');
-      const paidEntry = existingLedgerEntries.find(e => e.type === 'paid');
+      const dueEntry = existingLedgerEntries.find((e) => e.type === 'due');
+      const paidEntry = existingLedgerEntries.find((e) => e.type === 'paid');
 
       // Payments recorded separately against this purchase already exist as
       // their own ledger entries (referenceType 'payment') and are rolled into
@@ -351,7 +351,7 @@ export class PurchaseService extends BaseService<Purchase> {
       // entry only carries what was paid at the time of purchase. Otherwise the
       // same money is debited twice.
       const linkedPayments = await queryRunner.manager.find(Payment, {
-        where: { referenceId: id, referenceType: 'purchase' },
+        where: { referenceId: id, referenceType: 'purchase', isDeleted: false },
       });
       const separatelyPaidTotal = linkedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       const atPurchasePaidAmount = newPaidAmount - separatelyPaidTotal;
