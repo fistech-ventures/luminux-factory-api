@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base';
 import { asyncForEach } from '@src/shared';
-import { FindOptionsRelations, FindOptionsWhere, Not, Repository } from 'typeorm';
+import { DataSource, FindOptionsRelations, FindOptionsWhere, Not, Repository } from 'typeorm';
 import { ProductCreateDTO } from '../dtos/product/create.dto';
 import { ProductVariantSkuDTO } from '../dtos/product/create.dto';
 import { ProductUpdateDTO, ProductVariantSkuUpdateDTO } from '../dtos/product/update.dto';
@@ -16,6 +16,7 @@ export class ProductService extends BaseService<Product> {
   constructor(
     @InjectRepository(Product)
     private readonly _repo: Repository<Product>,
+    private readonly dataSource: DataSource,
   ) {
     super(_repo);
   }
@@ -124,12 +125,8 @@ export class ProductService extends BaseService<Product> {
     // deleted.
     // -------------------------------------------------------------------
     if (variants?.length) {
-      const queryRunner = this._repo.manager.queryRunner;
-      if (!queryRunner) {
-        throw new BadRequestException(
-          'No active query runner. Please use the service inside a transaction.',
-        );
-      }
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
       await queryRunner.startTransaction();
       try {
         for (const variant of variants) {
@@ -207,12 +204,14 @@ export class ProductService extends BaseService<Product> {
           select: { id: true, stockQuantity: true },
         });
         const totalStock = optionRows.reduce((sum, o) => sum + (o.stockQuantity || 0), 0);
-        await this.updateOneBase(id, { stock: totalStock } as any);
+        await queryRunner.manager.update(Product, { id, isDeleted: false }, { stock: totalStock });
 
         await queryRunner.commitTransaction();
-      } catch (_error) {
+      } catch (error) {
         await queryRunner.rollbackTransaction();
-        throw new BadRequestException('Something went wrong while saving variant data!');
+        throw new BadRequestException(
+          (error as Error).message || 'Something went wrong while saving variant data!',
+        );
       } finally {
         await queryRunner.release();
       }
@@ -291,12 +290,8 @@ export class ProductService extends BaseService<Product> {
   }
 
   private async updateSkus(productId: string, skus: ProductVariantSkuUpdateDTO[]): Promise<void> {
-    const queryRunner = this._repo.manager.queryRunner;
-    if (!queryRunner) {
-      throw new BadRequestException(
-        'No active query runner. Please use the service inside a transaction.',
-      );
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
       for (const sku of skus) {
@@ -322,12 +317,26 @@ export class ProductService extends BaseService<Product> {
         }
 
         const { values, id, ...skuData } = sku;
-        this.assertSkuValues(values);
-        const code = sku.productCode.trim();
-        const existing = await queryRunner.manager.findOne(ProductVariantSku, {
-          where: id ? { id, productId } : { productId, productCode: code },
-          withDeleted: true,
-        });
+        if (values !== undefined) this.assertSkuValues(values);
+        const existing = id
+          ? await queryRunner.manager.findOne(ProductVariantSku, {
+              where: { id, productId },
+              withDeleted: true,
+            })
+          : sku.productCode
+            ? await queryRunner.manager.findOne(ProductVariantSku, {
+                where: { productId, productCode: sku.productCode.trim() },
+                withDeleted: true,
+              })
+            : null;
+        const code = sku.productCode?.trim() ?? existing?.productCode;
+        if (!code) throw new BadRequestException('SKU code is required');
+        if (
+          !existing &&
+          (sku.sourcingPrice == null || sku.sellingPrice == null || sku.stockQuantity == null)
+        ) {
+          throw new BadRequestException('New SKU price and stock values are required');
+        }
         await this.assertUniqueSkuCode(code, existing?.id ?? id);
         const savedSku = existing
           ? await queryRunner.manager.save(ProductVariantSku, {
@@ -344,7 +353,7 @@ export class ProductService extends BaseService<Product> {
             });
 
         // Replace values but soft-delete any that are no longer referenced.
-        if (values?.length) {
+        if (values !== undefined) {
           const currentValues = await queryRunner.manager.find(ProductVariantSkuValue, {
             where: { skuId: savedSku.id },
             withDeleted: true,
@@ -391,18 +400,6 @@ export class ProductService extends BaseService<Product> {
               });
             }
           }
-        } else {
-          // SKU has no values defined: soft-delete all existing values.
-          const currentValues = await queryRunner.manager.find(ProductVariantSkuValue, {
-            where: { skuId: savedSku.id },
-          });
-          for (const current of currentValues) {
-            await queryRunner.manager.update(
-              ProductVariantSkuValue,
-              { id: current.id },
-              { isDeleted: true, deletedAt: new Date() },
-            );
-          }
         }
       }
 
@@ -412,12 +409,18 @@ export class ProductService extends BaseService<Product> {
         select: { id: true, stockQuantity: true },
       });
       const totalStock = skuRows.reduce((sum, sku) => sum + (sku.stockQuantity || 0), 0);
-      await this.updateOneBase(productId, { stock: totalStock } as any);
+      await queryRunner.manager.update(
+        Product,
+        { id: productId, isDeleted: false },
+        { stock: totalStock },
+      );
 
       await queryRunner.commitTransaction();
-    } catch (_error) {
+    } catch (error) {
       await queryRunner.rollbackTransaction();
-      throw new BadRequestException('Something went wrong while saving SKU data!');
+      throw new BadRequestException(
+        (error as Error).message || 'Something went wrong while saving SKU data!',
+      );
     } finally {
       await queryRunner.release();
     }

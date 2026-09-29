@@ -10,9 +10,37 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { ProductVariantSkuDTO } from './create.dto';
+import { ProductVariantSkuValueDTO } from './create.dto';
 
-export class ProductVariantSkuUpdateDTO extends ProductVariantSkuDTO {
+export class ProductVariantSkuUpdateDTO {
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  readonly productCode?: string;
+
+  @ApiProperty({ type: Number, required: false })
+  @IsOptional()
+  @IsNumber()
+  readonly sourcingPrice?: number;
+
+  @ApiProperty({ type: Number, required: false })
+  @IsOptional()
+  @IsNumber()
+  readonly sellingPrice?: number;
+
+  @ApiProperty({ type: Number, required: false })
+  @IsOptional()
+  @IsNumber()
+  readonly stockQuantity?: number;
+
+  @ApiProperty({ type: [ProductVariantSkuValueDTO], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantSkuValueDTO)
+  readonly values?: ProductVariantSkuValueDTO[];
+
   @ApiProperty({ type: String, required: false })
   @IsOptional()
   @IsUUID()
