@@ -70,7 +70,7 @@ export class RoleService extends BaseService<Role> {
       payload.permissions = [...new Set(payload.permissions)];
 
       await asyncForEach(payload.permissions, async (permissionId) => {
-        const isRolePermissionExist = await this.rolePermissionService.findOne({
+        const isRolePermissionExist = await this.rolePermissionService.findOneIncludingDeleted({
           where: {
             roleId: isRoleExist.id,
             permissionId: permissionId,
@@ -81,20 +81,22 @@ export class RoleService extends BaseService<Role> {
           // Standard lookups include soft-deleted rows, so a previously removed
           // permission looks present. Revive it instead of throwing a false error.
           if (isRolePermissionExist.isDeleted) {
-            await this.rolePermissionService.updateOneBase(
-              isRolePermissionExist.id,
-              { isDeleted: false },
+            await queryRunner.manager.update(
+              RolePermission,
+              { id: isRolePermissionExist.id },
+              { isDeleted: false, deletedAt: null },
             );
           } else {
             throw new BadRequestException('Permission already exist');
           }
+        } else {
+          await queryRunner.manager.save(
+            Object.assign(new RolePermission(), {
+              roleId: isRoleExist.id,
+              permissionId: permissionId,
+            }),
+          );
         }
-        await queryRunner.manager.save(
-          Object.assign(new RolePermission(), {
-            roleId: isRoleExist.id,
-            permissionId: permissionId,
-          }),
-        );
 
         addedPermissions.push(permissionId);
       });
@@ -142,7 +144,10 @@ export class RoleService extends BaseService<Role> {
         }
         // Soft-delete the role_permission instead of hard-deleting it.
         // Role permissions are always active (default true), so set isDeleted = true.
-        await this.rolePermissionService.updateOneBase(isRolePermissionExist.id, { isDeleted: true });
+        await this.rolePermissionService.repo.update(
+          isRolePermissionExist.id,
+          { isDeleted: true, deletedAt: new Date() } as any,
+        );
 
         removedPermissions.push(permissionId);
       });

@@ -4,6 +4,7 @@ import { HtmlHelper } from '@src/app/helpers';
 import { IFindBaseOptions } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { generateCode } from '@src/shared';
+import { pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 import {
   commitTransaction,
   findAllByRepo,
@@ -30,12 +31,12 @@ export class UserProfileService {
 
   async findById(id: string, options?: IFindBaseOptions<UserProfile>): Promise<UserProfile> {
     const opts: FindOneOptions = {
-      where: { id },
+      where: { id, isDeleted: false },
     };
     if (options?.select) opts.select = options?.select;
     if (options?.relations) opts.relations = options?.relations;
 
-    return await this.repo.findOne(opts);
+    return pruneSoftDeleted(await this.repo.findOne(opts));
   }
 
   async findOne(
@@ -45,11 +46,12 @@ export class UserProfileService {
     const opts: FindOneOptions = {
       where: {
         ...filters,
+        isDeleted: false,
       },
     };
     if (options?.select) opts.select = options?.select;
     if (options?.relations) opts.relations = options?.relations;
-    return await this.repo.findOne(opts);
+    return pruneSoftDeleted(await this.repo.findOne(opts));
   }
 
   async findAll(
@@ -76,6 +78,7 @@ export class UserProfileService {
 
       isExist = await queryRunner.manager.exists(UserProfile, {
         where: { code },
+        withDeleted: true,
       });
 
       if (isExist) {
@@ -90,10 +93,23 @@ export class UserProfileService {
     options?: IFindBaseOptions<UserProfile>,
   ): Promise<UserProfile> {
 
-    const isExist = await this.repo.exists({ where: { userId: payload.userId } });
+    const existingProfile = await this.repo.findOne({
+      where: { userId: payload.userId },
+      withDeleted: true,
+    });
 
-    if (isExist) {
+    if (existingProfile && !existingProfile.isDeleted && !existingProfile.deletedAt) {
       throw new BadRequestException('Worker Profile already exists for this user!');
+    }
+
+    if (existingProfile) {
+      await this.repo.save({
+        ...existingProfile,
+        ...payload,
+        isDeleted: false,
+        deletedAt: null,
+      });
+      return this.findById(existingProfile.id, options);
     }
 
     const queryRunner = await startTransaction(this.dataSource);
@@ -119,7 +135,7 @@ export class UserProfileService {
     options: IFindBaseOptions<UserProfile>,
   ): Promise<UserProfile> {
 
-    const isExist = await this.repo.exists({ where: { id } });
+    const isExist = await this.repo.exists({ where: { id, isDeleted: false } });
     if (!isExist) {
       throw new NotFoundException('Worker Profile not found');
     }
@@ -144,7 +160,7 @@ export class UserProfileService {
     payload: UserProfileVerifyDTO,
     options: IFindBaseOptions<UserProfile>,
   ): Promise<UserProfile> {
-    const isExist = await this.repo.exists({ where: { id } });
+    const isExist = await this.repo.exists({ where: { id, isDeleted: false } });
     if (!isExist) {
       throw new NotFoundException('Worker Profile not found');
     }

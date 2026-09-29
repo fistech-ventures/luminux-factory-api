@@ -56,7 +56,7 @@ export class InvoiceService {
   /** Loads a sale with everything the invoice needs. */
   async findSaleWithInvoiceData(id: string): Promise<Sale> {
     return await this.saleRepo.findOne({
-      where: { id },
+      where: { id, isDeleted: false },
       relations: this.saleRelations,
     });
   }

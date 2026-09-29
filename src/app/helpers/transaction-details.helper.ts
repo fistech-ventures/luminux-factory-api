@@ -1,4 +1,5 @@
 import { In, Repository } from 'typeorm';
+import { pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 import { Customer } from '../modules/customer/entities/customer.entity';
 import { Supplier } from '../modules/supplier/entities/supplier.entity';
 import { Sale } from '../modules/sales/entities/sale.entity';
@@ -56,13 +57,13 @@ export async function loadParties(
 
   const [customers, suppliers, employees] = await Promise.all([
     customerIds.size
-      ? customerRepo.find({ where: { id: In([...customerIds]) } })
+      ? customerRepo.find({ where: { id: In([...customerIds]), isDeleted: false } })
       : Promise.resolve([] as Customer[]),
     supplierIds.size
-      ? supplierRepo.find({ where: { id: In([...supplierIds]) } })
+      ? supplierRepo.find({ where: { id: In([...supplierIds]), isDeleted: false } })
       : Promise.resolve([] as Supplier[]),
     employeeRepo && employeeIds.size
-      ? employeeRepo.find({ where: { id: In([...employeeIds]) } })
+      ? employeeRepo.find({ where: { id: In([...employeeIds]), isDeleted: false } })
       : Promise.resolve([] as Employee[]),
   ]);
 
@@ -82,11 +83,11 @@ export async function loadSales(
   if (!uniqueIds.length) return new Map();
 
   const sales = await saleRepo.find({
-    where: { id: In(uniqueIds) },
+    where: { id: In(uniqueIds), isDeleted: false },
     relations: SALE_DETAIL_RELATIONS,
   });
 
-  return new Map(sales.map((sale) => [sale.id, sale]));
+  return new Map(sales.map((sale) => [sale.id, pruneSoftDeleted(sale)]));
 }
 
 /** Bulk-loads purchases (with items, supplier and purchaser) keyed by id. */
@@ -98,11 +99,11 @@ export async function loadPurchases(
   if (!uniqueIds.length) return new Map();
 
   const purchases = await purchaseRepo.find({
-    where: { id: In(uniqueIds) },
+    where: { id: In(uniqueIds), isDeleted: false },
     relations: PURCHASE_DETAIL_RELATIONS,
   });
 
-  return new Map(purchases.map((purchase) => [purchase.id, purchase]));
+  return new Map(purchases.map((purchase) => [purchase.id, pruneSoftDeleted(purchase)]));
 }
 
 /** Bulk-loads expenses keyed by id. */
@@ -113,6 +114,6 @@ export async function loadExpenses(
   const uniqueIds = [...new Set((ids || []).filter(Boolean) as string[])];
   if (!uniqueIds.length) return new Map();
 
-  const expenses = await expenseRepo.find({ where: { id: In(uniqueIds) } });
-  return new Map(expenses.map((expense) => [expense.id, expense]));
+  const expenses = await expenseRepo.find({ where: { id: In(uniqueIds), isDeleted: false } });
+  return new Map(expenses.map((expense) => [expense.id, pruneSoftDeleted(expense)]));
 }

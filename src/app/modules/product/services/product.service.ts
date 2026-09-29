@@ -9,7 +9,7 @@ import { ProductUpdateDTO, ProductVariantSkuUpdateDTO } from '../dtos/product/up
 import { Product } from '../entities/product.entity';
 import { ProductVariantOption } from '../entities/productVariantOption.entity';
 import { ProductVariantSku } from '../entities/productVariantSku.entity';
-import { ProductVariantSkuValue } from '../entities/productVariantSku NULLe.entity';
+import { ProductVariantSkuValue } from '../entities/productVariantSkuValue.entity';
 
 @Injectable()
 export class ProductService extends BaseService<Product> {
@@ -41,6 +41,27 @@ export class ProductService extends BaseService<Product> {
     if (!productCode) {
       throw new BadRequestException('Product code is required');
     }
+
+    const existingProduct = await this.findOneIncludingDeleted({
+      where: { productCode },
+    });
+    if (existingProduct) {
+      if (!existingProduct.isDeleted && !existingProduct.deletedAt) {
+        throw new BadRequestException(`Product code already exists: ${productCode}`);
+      }
+      await this._repo.update(
+        existingProduct.id,
+        { isDeleted: false, deletedAt: null } as any,
+      );
+      return this.updateProduct(existingProduct.id, {
+        ...restPayload,
+        productCode,
+        stock: productStock,
+        variants,
+        skus,
+      } as ProductUpdateDTO);
+    }
+
     await this.assertUniqueProductCode(productCode);
 
     const saved = await this._repo.save(
@@ -123,7 +144,7 @@ export class ProductService extends BaseService<Product> {
             // underlying variant option id — and include soft-deleted rows
             // so we can check the references even for one the UI had removed.
             const inUse = await queryRunner.manager.findOne(ProductVariantOption, {
-              where: { variantOptionId: variant.id, productId: id },
+              where: { variantOptionId: variant.id, productId: id, isDeleted: false },
             });
 
             if (inUse) {
@@ -135,8 +156,8 @@ export class ProductService extends BaseService<Product> {
             // Soft-delete instead of hard delete.
             await queryRunner.manager.update(
               ProductVariantOption,
-              { entityId: variant.id, productId: id },
-              { isDeleted: true },
+              { variantOptionId: variant.id, productId: id },
+              { isDeleted: true, deletedAt: new Date() },
             );
           } else {
             const option = await queryRunner.manager.findOne(ProductVariantOption, {
@@ -147,6 +168,7 @@ export class ProductService extends BaseService<Product> {
                     variantId: variant.variantId,
                     variantOptionId: variant.variantOptionId,
                   },
+              withDeleted: true,
             });
 
             if (option) {
@@ -164,6 +186,7 @@ export class ProductService extends BaseService<Product> {
                   variantId: variant.variantId ?? option.variantId,
                   variantOptionId: variant.variantOptionId ?? option.variantOptionId,
                   isDeleted: false,
+                  deletedAt: null,
                 },
               );
             } else {
@@ -207,8 +230,8 @@ export class ProductService extends BaseService<Product> {
     if (excludeId) {
       where.id = Not(excludeId);
     }
-    const isExist = await this._repo.exists({ where });
-    if (isExist) {
+    const existing = await this.findOneIncludingDeleted({ where });
+    if (existing) {
       throw new BadRequestException(`Product code already exists: ${code}`);
     }
   }
@@ -235,6 +258,7 @@ export class ProductService extends BaseService<Product> {
   async assertUniqueSkuCode(code: string, excludeId?: string): Promise<void> {
     const existing = await this._repo.manager.findOne(ProductVariantSku, {
       where: { productCode: code },
+      withDeleted: true,
     });
     if (existing && existing.id !== excludeId)
       throw new BadRequestException(`SKU code already exists: ${code}`);
@@ -292,7 +316,7 @@ export class ProductService extends BaseService<Product> {
           await queryRunner.manager.update(
             ProductVariantSku,
             { id: sku.id, productId },
-            { isDeleted: true },
+            { isDeleted: true, deletedAt: new Date() },
           );
           continue;
         }
@@ -300,15 +324,18 @@ export class ProductService extends BaseService<Product> {
         const { values, id, ...skuData } = sku;
         this.assertSkuValues(values);
         const code = sku.productCode.trim();
-        await this.assertUniqueSkuCode(code, id);
-        const existing = id
-          ? await queryRunner.manager.findOne(ProductVariantSku, { where: { id, productId } })
-          : undefined;
+        const existing = await queryRunner.manager.findOne(ProductVariantSku, {
+          where: id ? { id, productId } : { productId, productCode: code },
+          withDeleted: true,
+        });
+        await this.assertUniqueSkuCode(code, existing?.id ?? id);
         const savedSku = existing
           ? await queryRunner.manager.save(ProductVariantSku, {
               ...existing,
               ...skuData,
               productCode: code,
+              isDeleted: false,
+              deletedAt: null,
             })
           : await queryRunner.manager.save(ProductVariantSku, {
               ...skuData,
@@ -320,6 +347,7 @@ export class ProductService extends BaseService<Product> {
         if (values?.length) {
           const currentValues = await queryRunner.manager.find(ProductVariantSkuValue, {
             where: { skuId: savedSku.id },
+            withDeleted: true,
           });
 
           for (const current of currentValues) {
@@ -328,14 +356,15 @@ export class ProductService extends BaseService<Product> {
               await queryRunner.manager.update(
                 ProductVariantSkuValue,
                 { id: current.id },
-                { isDeleted: true },
+                { isDeleted: true, deletedAt: new Date() },
               );
             }
           }
 
           for (const value of values) {
             const existingValue = currentValues.find(
-              (v) => v.variantOptionId === value.variantOptionId,            });
+              (currentValue) => currentValue.variantOptionId === value.variantOptionId,
+            );
 
             if (existingValue) {
               // same as above: the find() above returned this row from a previous
@@ -343,13 +372,17 @@ export class ProductService extends BaseService<Product> {
               // invisible update.
               await queryRunner.manager.update(
                 ProductVariantSkuValue,
-
                 { id: existingValue.id },
-                {              variantId: value.variantId,
-              variantOptionId: value.variantOptionId,
-
-              isDeleted: false },
-            );
+                {
+                  variantId: value.variantId,
+                  variantOptionId: value.variantOptionId,
+                  position: values.findIndex(
+                    (item) => item.variantOptionId === value.variantOptionId,
+                  ),
+                  isDeleted: false,
+                  deletedAt: null,
+                },
+              );
             } else {
               await queryRunner.manager.save(ProductVariantSkuValue, {
                 ...value,
@@ -360,14 +393,14 @@ export class ProductService extends BaseService<Product> {
           }
         } else {
           // SKU has no values defined: soft-delete all existing values.
-          const current NULLes = await queryRunner.manager.find(ProductVariantSkuValue, {
+          const currentValues = await queryRunner.manager.find(ProductVariantSkuValue, {
             where: { skuId: savedSku.id },
           });
-          for (const current of current NULLes) {
+          for (const current of currentValues) {
             await queryRunner.manager.update(
               ProductVariantSkuValue,
               { id: current.id },
-              { isDeleted: true },
+              { isDeleted: true, deletedAt: new Date() },
             );
           }
         }

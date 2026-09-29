@@ -16,7 +16,7 @@ export class GlobalConfigService {
 
   async getConfig(): Promise<GlobalConfig> {
     const config = await this.globalConfigRepo.findOne({
-      where: { isActive: true },
+      where: { isActive: true, isDeleted: false },
       order: { createdAt: 'DESC' },
     });
     if (!config) {
@@ -38,7 +38,7 @@ export class GlobalConfigService {
 
   async getAnalyticsConfig(): Promise<AnalyticsConfig> {
     const config = await this.analyticsConfigRepo.findOne({
-      where: { isActive: true },
+      where: { isActive: true, isDeleted: false },
       order: { createdAt: 'DESC' },
     });
     if (!config) {

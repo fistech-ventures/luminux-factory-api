@@ -79,13 +79,21 @@ export class LedgerService extends BaseService<Ledger> {
       if (existing) {
         // Soft-delete the ledger entry instead of hard-deleting it.
         // Ledger entries are transaction records, so they are never hard-deleted.
-        await manager.update(Ledger, { id: existing.id }, { isDeleted: true });
+        await manager.update(
+          Ledger,
+          { id: existing.id },
+          { isDeleted: true, deletedAt: new Date() },
+        );
       }
       return;
     }
 
     if (existing) {
-      await manager.update(Ledger, { id: existing.id }, values);
+      await manager.update(Ledger, { id: existing.id }, {
+        ...values,
+        isDeleted: false,
+        deletedAt: null,
+      });
     } else {
       await manager.save(manager.create(Ledger, values));
     }
@@ -263,10 +271,10 @@ export class LedgerService extends BaseService<Ledger> {
     // 1. Load the party (customer / supplier / employee) — 404 if not found.
     const party =
       entityType === 'customer'
-        ? await this.customerRepo.findOne({ where: { id: entityId } })
+        ? await this.customerRepo.findOne({ where: { id: entityId, isDeleted: false } })
         : entityType === 'supplier'
-          ? await this.supplierRepo.findOne({ where: { id: entityId } })
-          : await this.employeeRepo.findOne({ where: { id: entityId } });
+          ? await this.supplierRepo.findOne({ where: { id: entityId, isDeleted: false } })
+          : await this.employeeRepo.findOne({ where: { id: entityId, isDeleted: false } });
 
     if (!party) {
       throw new NotFoundException(`${entityType} not found: ${entityId}`);
@@ -361,7 +369,7 @@ export class LedgerService extends BaseService<Ledger> {
     const sales = await loadSales(Array.from(saleIds), this.saleRepo);
     const purchases = await loadPurchases(Array.from(purchaseIds), this.purchaseRepo);
     const payments = await this.paymentRepo.find({
-      where: { id: In(Array.from(paymentIds)) },
+      where: { id: In(Array.from(paymentIds)), isDeleted: false },
     });
     const paymentMap = new Map<string, Payment>(payments.map((p) => [p.id, p]));
     const expenses = await loadExpenses(Array.from(expenseIds), this.expenseRepo);

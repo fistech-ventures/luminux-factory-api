@@ -7,7 +7,7 @@ import {
   rollbackTransaction,
   startTransaction,
 } from '@src/shared/utils/dborm.utils';
-import { DataSource, FindOptionsRelations, Repository } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsRelations, Repository } from 'typeorm';
 import { CreatePurchaseDTO } from '../dtos/create.dto';
 import { UpdatePurchaseDTO } from '../dtos/update.dto';
 import { PurchaseItemDTO } from '../dtos/purchase-item.dto';
@@ -22,6 +22,7 @@ import { ProductVariantSku } from '../../product/entities/productVariantSku.enti
 import { ProductVariantSkuValue } from '../../product/entities/productVariantSkuValue.entity';
 import { LedgerService } from '../../ledger/services/ledger.service';
 import { Ledger } from '../../ledger/entities/ledger.entity';
+import { SuccessResponse } from '@src/app/types';
 
 @Injectable()
 export class PurchaseService extends BaseService<Purchase> {
@@ -72,7 +73,7 @@ export class PurchaseService extends BaseService<Purchase> {
         if (item.productId) {
           productId = item.productId;
           const existingProduct = await queryRunner.manager.findOne(Product, {
-            where: { id: item.productId },
+            where: { id: item.productId, isDeleted: false },
           });
           if (!existingProduct) {
             throw new BadRequestException('Product not found');
@@ -88,7 +89,7 @@ export class PurchaseService extends BaseService<Purchase> {
           // variant stocks). Sourcing price is still a product-level figure.
           if (item.skuId) {
             const sku = await queryRunner.manager.findOne(ProductVariantSku, {
-              where: { id: item.skuId, productId },
+              where: { id: item.skuId, productId, isDeleted: false },
             });
             if (!sku) throw new BadRequestException('SKU not found for the given product');
             await queryRunner.manager.update(
@@ -101,7 +102,7 @@ export class PurchaseService extends BaseService<Purchase> {
             );
           } else if (item.variantId) {
             const variant = await queryRunner.manager.findOne(ProductVariantOption, {
-              where: { id: item.variantId, productId },
+              where: { id: item.variantId, productId, isDeleted: false },
             });
             if (!variant) {
               throw new BadRequestException('Variant not found for the given product');
@@ -124,7 +125,12 @@ export class PurchaseService extends BaseService<Purchase> {
               `Product code is required to create the new product: ${item.productName}`,
             );
           }
-          await this.productService.assertUniqueProductCode(productCode);
+          const existingProduct = await this.productService.findOneIncludingDeleted({
+            where: { productCode },
+          });
+          if (existingProduct && !existingProduct.isDeleted && !existingProduct.deletedAt) {
+            throw new BadRequestException(`Product code already exists: ${productCode}`);
+          }
 
           const detailedStock = combinations.length
             ? itemQuantity
@@ -133,7 +139,7 @@ export class PurchaseService extends BaseService<Purchase> {
               : item.variants?.length
                 ? item.variants.reduce((sum, variant) => sum + (variant.stockQuantity || 0), 0)
                 : itemQuantity;
-          const newProduct = ProductFactory.createProduct(
+          const productData = ProductFactory.createProduct(
             productCode,
             item.productName,
             calculatedSourcingPrice,
@@ -141,31 +147,47 @@ export class PurchaseService extends BaseService<Purchase> {
             detailedStock,
             item.unit,
           );
-          const createdProduct = await queryRunner.manager.save(newProduct);
+          const createdProduct = await queryRunner.manager.save(
+            Product,
+            existingProduct
+              ? {
+                  ...existingProduct,
+                  ...productData,
+                  stock: (existingProduct.stock || 0) + detailedStock,
+                  isDeleted: false,
+                  deletedAt: null,
+                }
+              : productData,
+          );
           productId = createdProduct.id;
 
           if (item.variants?.length) {
-            await queryRunner.manager.save(
-              ProductVariantOption,
-              item.variants.map((variant) => ({
+            for (const variant of item.variants) {
+              const existingVariant = await queryRunner.manager.findOne(ProductVariantOption, {
+                where: {
+                  productId,
+                  variantId: variant.variantId,
+                  variantOptionId: variant.variantOptionId,
+                },
+                withDeleted: true,
+              });
+              await queryRunner.manager.save(ProductVariantOption, {
+                ...existingVariant,
                 ...variant,
                 productId,
                 sellingPrice: variant.sellingPrice ?? calculatedSourcingPrice,
-              })),
-            );
+                stockQuantity:
+                  (existingVariant?.stockQuantity || 0) + (variant.stockQuantity || 0),
+                isDeleted: false,
+                deletedAt: null,
+              });
+            }
           }
 
           if (item.skus?.length) {
             for (const sku of item.skus) {
               const { values, ...skuData } = sku;
-              const savedSku = await queryRunner.manager.save(ProductVariantSku, {
-                ...skuData,
-                productId,
-              });
-              await queryRunner.manager.save(
-                ProductVariantSkuValue,
-                values.map((value) => ({ ...value, skuId: savedSku.id })),
-              );
+              await this.upsertPurchasedSku(queryRunner.manager, productId, skuData, values);
             }
           }
 
@@ -174,23 +196,12 @@ export class PurchaseService extends BaseService<Purchase> {
               const combinationSourcingPrice =
                 (combination.totalProductCost + (combination.otherCost ?? 0)) /
                 combination.quantity;
-              await this.productService.assertUniqueSkuCode(combination.productCode.trim());
-
-              const savedSku = await queryRunner.manager.save(ProductVariantSku, {
+              await this.upsertPurchasedSku(queryRunner.manager, productId, {
                 productCode: combination.productCode.trim(),
                 sourcingPrice: combinationSourcingPrice,
                 sellingPrice: combinationSourcingPrice,
                 stockQuantity: combination.quantity,
-                productId,
-              });
-              await queryRunner.manager.save(
-                ProductVariantSkuValue,
-                combination.values.map((value, position) => ({
-                  ...value,
-                  position,
-                  skuId: savedSku.id,
-                })),
-              );
+              }, combination.values);
             }
           }
         }
@@ -276,6 +287,31 @@ export class PurchaseService extends BaseService<Purchase> {
     } catch (error) {
       await rollbackTransaction(queryRunner);
       throw new BadRequestException((error as Error).message || 'Purchase not created');
+    }
+  }
+
+  async deleteOneBase(id: string): Promise<SuccessResponse> {
+    const purchase = await this.findOne({ where: { id: id as any } });
+    if (!purchase) throw new NotFoundException('Purchase not found');
+
+    const queryRunner = await startTransaction(this.dataSource);
+    try {
+      const deletedAt = new Date();
+      await queryRunner.manager.update(
+        Purchase,
+        { id, isDeleted: false },
+        { isDeleted: true, deletedAt },
+      );
+      await queryRunner.manager.update(
+        Ledger,
+        { referenceId: id, referenceType: 'purchase', isDeleted: false },
+        { isDeleted: true, deletedAt },
+      );
+      await commitTransaction(queryRunner);
+      return new SuccessResponse('Purchase soft-deleted successfully', null);
+    } catch (error) {
+      await rollbackTransaction(queryRunner);
+      throw new BadRequestException((error as Error).message || 'Purchase not deleted');
     }
   }
 
@@ -405,5 +441,63 @@ export class PurchaseService extends BaseService<Purchase> {
       await rollbackTransaction(queryRunner);
       throw new BadRequestException((error as Error).message || 'Purchase not updated');
     }
+  }
+
+  private async upsertPurchasedSku(
+    manager: EntityManager,
+    productId: string,
+    skuData: Pick<ProductVariantSku, 'productCode' | 'sourcingPrice' | 'sellingPrice' | 'stockQuantity'>,
+    values: Array<Pick<ProductVariantSkuValue, 'variantId' | 'variantOptionId'>>,
+  ): Promise<ProductVariantSku> {
+    const productCode = skuData.productCode?.trim();
+    if (!productCode) throw new BadRequestException('SKU code is required');
+
+    const existing = await manager.findOne(ProductVariantSku, {
+      where: { productCode },
+      withDeleted: true,
+    });
+    if (existing && existing.productId !== productId) {
+      throw new BadRequestException(`SKU code already exists: ${productCode}`);
+    }
+
+    const savedSku = await manager.save(ProductVariantSku, {
+      ...existing,
+      ...skuData,
+      productCode,
+      productId,
+      stockQuantity: (existing?.stockQuantity || 0) + (skuData.stockQuantity || 0),
+      isDeleted: false,
+      deletedAt: null,
+    });
+
+    const currentValues = await manager.find(ProductVariantSkuValue, {
+      where: { skuId: savedSku.id },
+      withDeleted: true,
+    });
+    for (const current of currentValues) {
+      if (!values.some((value) => value.variantOptionId === current.variantOptionId)) {
+        await manager.update(
+          ProductVariantSkuValue,
+          { id: current.id },
+          { isDeleted: true, deletedAt: new Date() },
+        );
+      }
+    }
+
+    for (const [position, value] of values.entries()) {
+      const existingValue = currentValues.find(
+        (current) => current.variantOptionId === value.variantOptionId,
+      );
+      await manager.save(ProductVariantSkuValue, {
+        ...existingValue,
+        ...value,
+        position,
+        skuId: savedSku.id,
+        isDeleted: false,
+        deletedAt: null,
+      });
+    }
+
+    return savedSku;
   }
 }

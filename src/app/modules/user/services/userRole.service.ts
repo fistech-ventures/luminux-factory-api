@@ -18,7 +18,8 @@ export class UserRoleService extends BaseService<UserRole> {
   async getUserPermissions(userId: string): Promise<string[]> {
     const userRoles = await this.find({
       where: {
-        user: { id: userId },
+        user: { id: userId, isDeleted: false },
+        role: { isDeleted: false },
       },
       relations: {
         role: true,
@@ -33,7 +34,9 @@ export class UserRoleService extends BaseService<UserRole> {
         where: {
           role: {
             id: In(roleIds),
+            isDeleted: false,
           },
+          permission: { isDeleted: false },
         },
         relations: {
           permission: true,

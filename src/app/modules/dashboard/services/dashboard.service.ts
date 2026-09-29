@@ -6,6 +6,7 @@ import { Purchase } from '../../purchase/entities/purchase.entity';
 import { Expense } from '../../expense/entities/expense.entity';
 import { Product } from '../../product/entities/product.entity';
 import { DashboardQueryDTO } from '../dtos/dashboard-query.dto';
+import { pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 
 export interface IDashboardSummary {
   amount: number;
@@ -152,7 +153,7 @@ export class DashboardService {
       todayExpense: this.toSummary(todayExpense),
       totalProducts: Number(productStats?.count) || 0,
       totalProductsValuation: Number(productStats?.valuation) || 0,
-      recentSales,
+      recentSales: pruneSoftDeleted(recentSales),
       salesChart: dates.map((date) => salesByDate[date] || { date, amount: 0, count: 0 }),
       profitChart: dates.map((date) => ({ date, profit: profitByDate[date] || 0 })),
     };

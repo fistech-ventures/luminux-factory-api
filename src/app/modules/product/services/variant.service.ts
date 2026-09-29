@@ -23,12 +23,31 @@ export class VariantService extends BaseService<Variant> {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const savedVariant = await queryRunner.manager.save(Variant, variant);
+      const existingVariant = await queryRunner.manager.findOne(Variant, {
+        where: { title: variant.title },
+        withDeleted: true,
+      });
+      if (existingVariant && !existingVariant.isDeleted && !existingVariant.deletedAt) {
+        throw new BadRequestException('Variant title already exists');
+      }
+      const savedVariant = await queryRunner.manager.save(
+        Variant,
+        existingVariant
+          ? { ...existingVariant, ...variant, isDeleted: false, deletedAt: null }
+          : variant,
+      );
       if (options?.length) {
         await asyncForEach(options, async (op) => {
+          const existingOption = await queryRunner.manager.findOne(VariantOption, {
+            where: { variantId: savedVariant.id, title: op.title },
+            withDeleted: true,
+          });
           await queryRunner.manager.save(VariantOption, {
+            ...existingOption,
             ...op,
             variantId: savedVariant?.id,
+            isDeleted: false,
+            deletedAt: null,
           });
         });
       }
@@ -78,12 +97,12 @@ export class VariantService extends BaseService<Variant> {
 
             // 1. Does any product_variant_option row still reference this variant option?
             const productVariantOptionInUse = await queryRunner.manager.findOne(ProductVariantOption, {
-              where: { variantOptionId },
+              where: { variantOptionId, isDeleted: false },
             });
 
             // 2. Same check for product_variant_sku_values.
             const productVariantSkuValueInUse = await queryRunner.manager.findOne(ProductVariantSkuValue, {
-              where: { variantOptionId },
+              where: { variantOptionId, isDeleted: false },
             });
 
             if (productVariantOptionInUse || productVariantSkuValueInUse) {
@@ -107,7 +126,7 @@ export class VariantService extends BaseService<Variant> {
             await queryRunner.manager.update(
               VariantOption,
               { id: variantOptionId, variantId: id },
-              { isDeleted: true },
+              { isDeleted: true, deletedAt: new Date() },
             );
           } else {
             // 4. Insert / update a live option.

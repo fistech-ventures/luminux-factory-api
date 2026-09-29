@@ -4,7 +4,7 @@ import { BaseService } from '@src/app/base';
 import { IFileMeta } from '@src/app/interfaces';
 import { SuccessResponse } from '@src/app/types';
 import { ENUM_TABLE_NAMES, asyncForEach } from '@src/shared';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CreateGalleryDTO } from '../dtos/create.dto';
 import { Gallery } from '../entities/gallery.entity';
 import { R2FileUploadService } from './r2FileUpload.service';
@@ -25,6 +25,7 @@ export class GalleryService extends BaseService<Gallery> {
       const query = `
         SELECT "mimetype", COUNT(id) AS "count"
         FROM ${ENUM_TABLE_NAMES.GALLERY}
+        WHERE "isDeleted" = false
         GROUP BY "mimetype"
       `;
       const types = await this.dataSource.query(query);
@@ -120,11 +121,9 @@ export class GalleryService extends BaseService<Gallery> {
   }
 
   async removeGallery(id: string): Promise<SuccessResponse> {
-    const deletedItem = await this.findByIdBase(id);
     try {
-      await this.fileUploadService.deleteFromR2(deletedItem?.key);
       // Soft-delete the gallery instead of hard-deleting it.
-      // Gallery is a data table, so it is never hard-deleted.
+      // Keep the uploaded file so an accidental delete can be recovered.
       return this.softDeleteOneBase(id);
     } catch (error) {
       throw error;
@@ -133,12 +132,8 @@ export class GalleryService extends BaseService<Gallery> {
 
   async bulkRemoveGallery(ids: string[]): Promise<SuccessResponse> {
     try {
-      const itemsToDelete = await this.find({ where: { id: In(ids) } });
-      await asyncForEach(itemsToDelete, async (item) => {
-        await this.fileUploadService.deleteFromR2(item?.key);
-      });
       // Soft-delete the galleries instead of hard-deleting them.
-      // Gallery is a data table, so it is never hard-deleted.
+      // Keep uploaded files so accidental deletes can be recovered.
       return this.deleteBulkBase(ids);
     } catch (error) {
       throw error;

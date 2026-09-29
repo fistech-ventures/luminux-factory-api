@@ -18,7 +18,9 @@ export class PermissionService extends BaseService<Permission> {
     if (permissions?.length) {
       const payload = permissions.map((item) => ({
         title: item,
-        isActive: true
+        isActive: true,
+        isDeleted: false,
+        deletedAt: null,
       }));
       await this._repo.upsert(payload, ["title"]);
     } else {

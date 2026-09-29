@@ -69,7 +69,7 @@ export class SaleService extends BaseService<Sale> {
 
       // Customer type (B2B / B2C) drives the per-product average selling price.
       const customer = await queryRunner.manager.findOne(Customer, {
-        where: { id: payload.customerId },
+        where: { id: payload.customerId, isDeleted: false },
       });
       const customerType: ENUM_CUSTOMER_TYPES =
         customer?.customerType === ENUM_CUSTOMER_TYPES.B2B
@@ -392,56 +392,74 @@ export class SaleService extends BaseService<Sale> {
       for (const payment of linkedPayments) {
         // Soft-delete ledger entries instead of hard-deleting them.
         // Ledger entries are transaction records, so they are never hard-deleted.
-        await queryRunner.manager.update(Ledger, { id: payment.id }, { isDeleted: true });
+        await queryRunner.manager.update(
+          Ledger,
+          { referenceId: payment.id, referenceType: 'payment' },
+          { isDeleted: true, deletedAt: new Date() },
+        );
       }
 
       // Soft-delete payments instead of hard-deleting them.
       await queryRunner.manager.update(
         Payment,
         { referenceId: id, referenceType: 'sale' },
-        { isDeleted: true },
+        { isDeleted: true, deletedAt: new Date() },
       );
       // Soft-delete ledger entries for the sale.
       await queryRunner.manager.update(
         Ledger,
         { referenceId: id, referenceType: 'sale' },
-        { isDeleted: true },
+        { isDeleted: true, deletedAt: new Date() },
       );
 
       for (const item of sale.items || []) {
         if (item.skuId) {
-          // Restore stock instead of decrementing (since we're not hard-deleting the SKU)
-          await queryRunner.manager.update(
-            ProductVariantSku,
-            { id: item.skuId },
-            {
-              stockQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
-              saleQuantity: (item.skuId ? 0 : 0) + (item.quantity || 0),
-            },
-          );
+          const sku = await queryRunner.manager.findOne(ProductVariantSku, {
+            where: { id: item.skuId, isDeleted: false },
+          });
+          if (sku) {
+            await queryRunner.manager.update(
+              ProductVariantSku,
+              { id: sku.id, isDeleted: false },
+              {
+                stockQuantity: (sku.stockQuantity || 0) + (item.quantity || 0),
+                saleQuantity: Math.max(0, (sku.saleQuantity || 0) - (item.quantity || 0)),
+              },
+            );
+          }
         } else if (item.variantId) {
+          const variant = await queryRunner.manager.findOne(ProductVariantOption, {
+            where: { id: item.variantId, isDeleted: false },
+          });
+          if (variant) {
+            await queryRunner.manager.update(
+              ProductVariantOption,
+              { id: variant.id, isDeleted: false },
+              {
+                stockQuantity: (variant.stockQuantity || 0) + (item.quantity || 0),
+                saleQuantity: Math.max(0, (variant.saleQuantity || 0) - (item.quantity || 0)),
+              },
+            );
+          }
+        }
+
+        const product = await queryRunner.manager.findOne(Product, {
+          where: { id: item.productId, isDeleted: false },
+        });
+        if (product) {
           await queryRunner.manager.update(
-            ProductVariantOption,
-            { id: item.variantId },
+            Product,
+            { id: product.id, isDeleted: false },
             {
-              stockQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
-              saleQuantity: (item.variantId ? 0 : 0) + (item.quantity || 0),
+              stock: (product.stock || 0) + (item.quantity || 0),
+              saleQuantity: Math.max(0, (product.saleQuantity || 0) - (item.quantity || 0)),
             },
           );
         }
-
-        await queryRunner.manager.update(
-          Product,
-          { id: item.productId },
-          {
-            stock: (item.productId ? 0 : 0) + (item.quantity || 0),
-            saleQuantity: (item.productId ? 0 : 0) + (item.quantity || 0),
-          },
-        );
       }
 
       // Soft-delete the sale instead of hard-deleting it.
-      await queryRunner.manager.update(Sale, { id }, { isDeleted: true });
+      await queryRunner.manager.update(Sale, { id }, { isDeleted: true, deletedAt: new Date() });
       await commitTransaction(queryRunner);
 
       return new SuccessResponse('Sale soft-deleted successfully', null);
@@ -509,7 +527,7 @@ export class SaleService extends BaseService<Sale> {
 
     if (item.skuId) {
       const sku = await manager.findOne(ProductVariantSku, {
-        where: { id: item.skuId, productId: product.id },
+        where: { id: item.skuId, productId: product.id, isDeleted: false },
       });
       if (!sku) throw new NotFoundException(`SKU not found for product: ${product.title}`);
       unitCost = sku.sourcingPrice || 0;
@@ -606,7 +624,7 @@ export class SaleService extends BaseService<Sale> {
     unitPrice: number,
     quantity: number,
   ): Promise<void> {
-    const product = await manager.findOne(Product, { where: { id: productId } });
+    const product = await manager.findOne(Product, { where: { id: productId, isDeleted: false } });
     if (!product) {
       return;
     }

@@ -116,6 +116,14 @@ const getSearchScore = (item: unknown, searchTerms: string[], searchTerm: string
  * with a `where`, hence this post-processing step.
  */
 export const pruneSoftDeleted = <T>(value: T): T => {
+  if (
+    value &&
+    typeof value === 'object' &&
+    (value as { isDeleted?: boolean }).isDeleted === true
+  ) {
+    return null as T;
+  }
+
   if (Array.isArray(value)) {
     return value
       .filter(
@@ -183,14 +191,9 @@ export async function findAllByRepo<T extends BaseEntity>(
   } = filters;
   const skip = (page - 1) * take;
 
-  // Soft-deleted rows must never be listed by default. The filter is applied at
-  // the query level so pagination (total / skip / take) stays accurate instead
-  // of trimming rows off an already-paginated page, and the same flag drives the
-  // relation pruning further down. A caller that explicitly filters on
-  // `isDeleted` (e.g. an admin "show deleted" view) keeps full control and gets
-  // raw rows, so the two halves of this behaviour can never disagree.
-  const hideSoftDeleted = !('isDeleted' in (queryOptions as Record<string, unknown>));
-  const softDeleteWhere: { isDeleted?: boolean } = hideSoftDeleted ? { isDeleted: false } : {};
+  // Deleted rows are archival only: lists, pagination totals, and relations
+  // must never include them. Recovery uses explicit include-deleted lookups.
+  const softDeleteWhere: { isDeleted: boolean } = { isDeleted: false };
   Object.assign(queryOptions as Record<string, unknown>, softDeleteWhere);
 
   // Date-range filtering. startDate/endDate come from BaseFilterDTO and are not
@@ -379,7 +382,7 @@ export async function findAllByRepo<T extends BaseEntity>(
         .map(({ item }) => item)
     : allData;
   const sortedData = [...initialData, ...data].map(sortPositionedArrays);
-  const combinedData = hideSoftDeleted ? pruneSoftDeleted(sortedData) : sortedData;
+  const combinedData = pruneSoftDeleted(sortedData);
 
   return new SuccessResponse<T[]>(`${repo.metadata.name} fetched successfully`, combinedData, {
     total: total,

@@ -59,7 +59,29 @@ export class UserService extends BaseService<User> {
     let createdUser = null;
 
     try {
-      createdUser = await queryRunner.manager.save(User, restPayload);
+      const uniqueWhere = [
+        ...(restPayload.email ? [{ email: restPayload.email }] : []),
+        ...(restPayload.phoneNumber ? [{ phoneNumber: restPayload.phoneNumber }] : []),
+      ];
+      const matchingUsers = uniqueWhere.length
+        ? await queryRunner.manager.find(User, { where: uniqueWhere, withDeleted: true })
+        : [];
+      const uniqueMatches = [...new Map(matchingUsers.map((user) => [user.id, user])).values()];
+      if (uniqueMatches.length > 1) {
+        throw new BadRequestException('User unique values belong to different records');
+      }
+
+      const existingUser = uniqueMatches[0];
+      if (existingUser && !existingUser.isDeleted && !existingUser.deletedAt) {
+        throw new BadRequestException('A user with this email, username, or phone number already exists');
+      }
+
+      createdUser = await queryRunner.manager.save(
+        User,
+        existingUser
+          ? { ...existingUser, ...restPayload, isDeleted: false, deletedAt: null }
+          : restPayload,
+      );
 
       if (!createdUser) {
         throw new BadRequestException('User not created');
@@ -73,12 +95,24 @@ export class UserService extends BaseService<User> {
           if (!roleData) {
             throw new BadRequestException(`Role not found: ${role}`);
           }
-          await queryRunner.manager.save(
-            Object.assign(new UserRole(), {
-              userId: createdUser.id,
-              roleId: roleData.id,
-            }),
-          );
+          const existingUserRole = await queryRunner.manager.findOne(UserRole, {
+            where: { userId: createdUser.id, roleId: roleData.id },
+            withDeleted: true,
+          });
+          if (existingUserRole) {
+            await queryRunner.manager.update(
+              UserRole,
+              { id: existingUserRole.id },
+              { isDeleted: false, deletedAt: null },
+            );
+          } else {
+            await queryRunner.manager.save(
+              Object.assign(new UserRole(), {
+                userId: createdUser.id,
+                roleId: roleData.id,
+              }),
+            );
+          }
         }
       }
       await commitTransaction(queryRunner);
@@ -89,13 +123,17 @@ export class UserService extends BaseService<User> {
       const errorMessage = (error as Error).message || 'User not created';
       if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
         if (restPayload.email) {
-          const existingEmail = await this.findOneBase({ email: restPayload.email });
+          const existingEmail = await this.findOneIncludingDeleted({
+            where: { email: restPayload.email },
+          });
           if (existingEmail) {
             throw new BadRequestException('A user with this email already exists');
           }
         }
         if (restPayload.phoneNumber) {
-          const existingPhone = await this.findOneBase({ phoneNumber: restPayload.phoneNumber });
+          const existingPhone = await this.findOneIncludingDeleted({
+            where: { phoneNumber: restPayload.phoneNumber },
+          });
           if (existingPhone) {
             throw new BadRequestException('A user with this phone number already exists');
           }
@@ -214,7 +252,7 @@ export class UserService extends BaseService<User> {
           await this._repo.manager.update(
             UserRole,
             { userId: id, roleId: role.role },
-            { isDeleted: true },
+            { isDeleted: true, deletedAt: new Date() },
           );
         });
 
@@ -222,7 +260,7 @@ export class UserService extends BaseService<User> {
           const isRoleExist = await this.roleService.isExist({
             id: role.role,
           });
-          const isUserRoleExist = await this.userRoleService.findOne({
+          const isUserRoleExist = await this.userRoleService.findOneIncludingDeleted({
             where: {
               userId: id,
               roleId: role.role,
@@ -233,15 +271,15 @@ export class UserService extends BaseService<User> {
             // Standard lookups include soft-deleted rows, so a previously removed
             // role looks present. Revive it instead of throwing a false conflict.
             if (isUserRoleExist.isDeleted) {
-              await this._repo.manager.update(UserRole, {
-                userId: id,
-                roleId: role.role,
-              }, { isDeleted: false } as any);
+              await queryRunner.manager.update(
+                UserRole,
+                { userId: id, roleId: role.role },
+                { isDeleted: false, deletedAt: null },
+              );
             } else {
               throw new ConflictException(`User already has the ${isRoleExist?.title} role!`);
             }
-          }
-          else {
+          } else {
             await queryRunner.manager.save(
               Object.assign(new UserRole(), {
                 userId: id,

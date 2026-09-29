@@ -13,6 +13,7 @@ import { UpdateExpenseDTO } from '../dtos/update.dto';
 import { LedgerService } from '../../ledger/services/ledger.service';
 import { Ledger } from '../../ledger/entities/ledger.entity';
 import { Employee } from '../../employee/entities/employee.entity';
+import { SuccessResponse } from '@src/app/types';
 
 @Injectable()
 export class ExpenseService extends BaseService<Expense> {
@@ -51,6 +52,31 @@ export class ExpenseService extends BaseService<Expense> {
     } catch (error) {
       await rollbackTransaction(queryRunner);
       throw new BadRequestException((error as Error).message || 'Expense not created');
+    }
+  }
+
+  async deleteOneBase(id: string): Promise<SuccessResponse> {
+    const expense = await this.findOne({ where: { id: id as any } });
+    if (!expense) throw new NotFoundException('Expense not found');
+
+    const queryRunner = await startTransaction(this.dataSource);
+    try {
+      const deletedAt = new Date();
+      await queryRunner.manager.update(
+        Expense,
+        { id, isDeleted: false },
+        { isDeleted: true, deletedAt },
+      );
+      await queryRunner.manager.update(
+        Ledger,
+        { referenceId: id, referenceType: 'expense', isDeleted: false },
+        { isDeleted: true, deletedAt },
+      );
+      await commitTransaction(queryRunner);
+      return new SuccessResponse('Expense soft-deleted successfully', null);
+    } catch (error) {
+      await rollbackTransaction(queryRunner);
+      throw new BadRequestException((error as Error).message || 'Expense not deleted');
     }
   }
 
@@ -117,7 +143,9 @@ export class ExpenseService extends BaseService<Expense> {
       return spentBy;
     }
 
-    const employee = await manager.findOne(Employee, { where: { id: employeeId } });
+    const employee = await manager.findOne(Employee, {
+      where: { id: employeeId, isDeleted: false },
+    });
     if (!employee) {
       throw new NotFoundException(`Employee not found: ${employeeId}`);
     }

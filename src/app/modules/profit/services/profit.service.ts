@@ -158,7 +158,7 @@ export class ProfitService {
             2
           )::double precision AS "profit"
         FROM "sales" s
-        LEFT JOIN "customers" c ON c."id" = s."customerId"
+        LEFT JOIN "customers" c ON c."id" = s."customerId" AND c."isDeleted" = false
         LEFT JOIN "sale_items" si ON si."saleId" = s."id" AND si."isDeleted" = false
         WHERE s."isActive" = true
           AND s."isDeleted" = false

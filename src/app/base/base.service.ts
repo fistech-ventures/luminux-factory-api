@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BaseEntity, IBaseService, IMultipleSort } from '@src/app/base';
 import { findAllByRepo, pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 import {
@@ -18,15 +18,39 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
   constructor(public repo: Repository<T>) {}
 
   public async find(options?: FindManyOptions<T>): Promise<T[]> {
-    return this.repo.find(options);
+    const rows = await this.repo.find({
+      ...options,
+      where: this.activeWhere(options?.where),
+      withDeleted: false,
+    });
+    return pruneSoftDeleted(rows);
   }
 
   public async count(options?: FindManyOptions<T>): Promise<number> {
-    return this.repo.count(options);
+    return this.repo.count({
+      ...options,
+      where: this.activeWhere(options?.where),
+      withDeleted: false,
+    });
   }
 
   public async findOne(options?: FindOneOptions<T>): Promise<T> {
-    return this.repo.findOne(options);
+    const row = await this.repo.findOne({
+      ...options,
+      where: this.activeWhere(options?.where),
+      withDeleted: false,
+    });
+    return pruneSoftDeleted(row);
+  }
+
+  // Use only for restore-on-recreate and explicit recovery workflows.
+  public async findIncludingDeleted(options?: FindManyOptions<T>): Promise<T[]> {
+    return this.repo.find({ ...options, withDeleted: true });
+  }
+
+  // Use only for restore-on-recreate and explicit recovery workflows.
+  public async findOneIncludingDeleted(options?: FindOneOptions<T>): Promise<T> {
+    return this.repo.findOne({ ...options, withDeleted: true });
   }
 
   // NOTE: Hard delete is intentionally NOT provided as a public method.
@@ -52,7 +76,7 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
   }
 
   public async isExist(filters: T, options?: IFindBaseOptions<T>): Promise<T> {
-    const isExist = await this.repo.findOne({
+    const isExist = await this.findOne({
       where: filters as FindOptionsWhere<T>,
       relations: options?.relations ? options?.relations : {},
       // select: options?.select ? { ...options.select, createdAt: true } : {}
@@ -94,6 +118,8 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
     return pruneSoftDeleted(await this.repo.findOne(opts));
   }
 
+  // Includes soft-deleted rows for uniqueness checks and revival.
+  // Includes soft-deleted rows for uniqueness checks and revival.
   async findOneBase(filters: T, options?: IFindBaseOptions<T>): Promise<T> {
     const relations = this.repo.metadata.relations.map((r) => r.propertyName);
 
@@ -111,10 +137,13 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
     };
     if (options?.select) opts.select = { createdAt: true, ...options?.select };
     if (options?.relations) opts.relations = options?.relations;
-    return await this.repo.findOne(opts);
+    return await this.findOne(opts);
   }
 
   async createOneBase(data: T, options?: IFindBaseOptions<T>): Promise<T> {
+    const restored = await this.restoreDeletedUniqueMatch(data, options);
+    if (restored) return restored;
+
     const created = await this.repo.save(data);
     return await this.findByIdBase(created.id, options);
   }
@@ -129,7 +158,7 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
   }
 
   async deleteOneBase(id: string): Promise<SuccessResponse> {
-    await this.repo.update(id, { isDeleted: true } as any);
+    await this.repo.update(id, { isDeleted: true, deletedAt: new Date() } as any);
     return new SuccessResponse(`${this.repo.metadata.name} soft-deleted successfully`, null);
   }
 
@@ -137,20 +166,71 @@ export abstract class BaseService<T extends BaseEntity> implements IBaseService<
     if (id.length === 0) {
       return new SuccessResponse(`${this.repo.metadata.name} soft-deleted successfully`, null);
     }
-    await this.repo.update(id, { isDeleted: true } as any);
+    await this.repo.update(id, { isDeleted: true, deletedAt: new Date() } as any);
     return new SuccessResponse(`${this.repo.metadata.name} soft-deleted successfully`, null);
   }
 
   async softDeleteOneBase(id: string): Promise<SuccessResponse> {
-    await this.repo.softDelete(id);
+    await this.repo.update(id, { isDeleted: true, deletedAt: new Date() } as any);
     return new SuccessResponse(`${this.repo.metadata.name} deleted successfully`, null);
   }
 
   async recoverByIdBase(id: string, options?: IFindBaseOptions<T>): Promise<T> {
     // `recover` only clears deletedAt (the DeleteDateColumn). The isDeleted flag
     // is what read queries filter on, so it has to be cleared as well.
-    await this.repo.update(id, { isDeleted: false } as any);
+    await this.repo.update(id, { isDeleted: false, deletedAt: null } as any);
     await this.repo.recover({ id } as DeepPartial<T>);
     return await this.findByIdBase(id, options);
+  }
+
+  private activeWhere(
+    where: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined,
+  ): FindOptionsWhere<T> | FindOptionsWhere<T>[] {
+    if (!where) return { isDeleted: false } as FindOptionsWhere<T>;
+    if (Array.isArray(where)) {
+      return where.map((condition) => ({ ...condition, isDeleted: false }) as FindOptionsWhere<T>);
+    }
+    return { ...where, isDeleted: false } as FindOptionsWhere<T>;
+  }
+
+  private async restoreDeletedUniqueMatch(data: T, options?: IFindBaseOptions<T>): Promise<T | null> {
+    const uniqueConstraints = [
+      ...this.repo.metadata.uniques.map((unique) => unique.columns),
+      ...this.repo.metadata.indices
+        .filter((index) => index.isUnique)
+        .map((index) => index.columns),
+    ];
+    const where = uniqueConstraints.flatMap((columns) => {
+      const clause: Record<string, unknown> = {};
+      for (const column of columns) {
+        const property = column.propertyName;
+        if (!(property in data) || data[property] == null) return [];
+        clause[property] = data[property];
+      }
+      return [clause as FindOptionsWhere<T>];
+    });
+
+    if (!where.length) return null;
+
+    const matches = await this.repo.find({ where, withDeleted: true });
+    if (!matches.length) return null;
+
+    const uniqueMatches = [...new Map(matches.map((match) => [match.id, match])).values()];
+    if (uniqueMatches.length !== 1) {
+      throw new BadRequestException('Unique values match multiple existing records');
+    }
+
+    const existing = uniqueMatches[0];
+    if (!existing.isDeleted && !existing.deletedAt) {
+      throw new BadRequestException(`${this.repo.metadata.name} already exists`);
+    }
+
+    await this.repo.save({
+      ...existing,
+      ...data,
+      isDeleted: false,
+      deletedAt: null,
+    } as T);
+    return this.findByIdBase(existing.id, options);
   }
 }

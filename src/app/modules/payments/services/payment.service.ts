@@ -111,7 +111,7 @@ export class PaymentService extends BaseService<Payment> {
 
       if (payload.referenceId && payload.referenceType === 'sale') {
         const sale = await queryRunner.manager.findOne(Sale, {
-          where: { id: payload.referenceId },
+          where: { id: payload.referenceId, isDeleted: false },
         });
         if (sale) {
           await queryRunner.manager.update(
@@ -125,7 +125,7 @@ export class PaymentService extends BaseService<Payment> {
         }
       } else if (payload.referenceId && payload.referenceType === 'purchase') {
         const purchase = await queryRunner.manager.findOne(Purchase, {
-          where: { id: payload.referenceId },
+          where: { id: payload.referenceId, isDeleted: false },
         });
         if (purchase) {
           await queryRunner.manager.update(
@@ -145,6 +145,58 @@ export class PaymentService extends BaseService<Payment> {
     } catch (error) {
       await rollbackTransaction(queryRunner);
       throw new BadRequestException((error as Error).message || 'Payment not created');
+    }
+  }
+
+  async deleteOneBase(id: string): Promise<SuccessResponse> {
+    const payment = await this.findOne({ where: { id: id as any } });
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    const queryRunner = await startTransaction(this.dataSource);
+    try {
+      const deletedAt = new Date();
+      await queryRunner.manager.update(
+        Payment,
+        { id, isDeleted: false },
+        { isDeleted: true, deletedAt },
+      );
+      await queryRunner.manager.update(
+        Ledger,
+        { referenceId: id, referenceType: 'payment', isDeleted: false },
+        { isDeleted: true, deletedAt },
+      );
+
+      if (payment.referenceId && payment.referenceType === 'sale') {
+        const sale = await queryRunner.manager.findOne(Sale, {
+          where: { id: payment.referenceId, isDeleted: false },
+        });
+        if (sale) {
+          const paidAmount = Math.max(0, (sale.paidAmount || 0) - (payment.amount || 0));
+          await queryRunner.manager.update(
+            Sale,
+            { id: sale.id },
+            { paidAmount, dueAmount: Math.max(0, (sale.grandTotal || 0) - paidAmount) },
+          );
+        }
+      } else if (payment.referenceId && payment.referenceType === 'purchase') {
+        const purchase = await queryRunner.manager.findOne(Purchase, {
+          where: { id: payment.referenceId, isDeleted: false },
+        });
+        if (purchase) {
+          const paidAmount = Math.max(0, (purchase.paidAmount || 0) - (payment.amount || 0));
+          await queryRunner.manager.update(
+            Purchase,
+            { id: purchase.id },
+            { paidAmount, dueAmount: Math.max(0, (purchase.totalPurchaseAmount || 0) - paidAmount) },
+          );
+        }
+      }
+
+      await commitTransaction(queryRunner);
+      return new SuccessResponse('Payment soft-deleted successfully', null);
+    } catch (error) {
+      await rollbackTransaction(queryRunner);
+      throw new BadRequestException((error as Error).message || 'Payment not deleted');
     }
   }
 
@@ -204,7 +256,7 @@ export class PaymentService extends BaseService<Payment> {
       if (amountDiff !== 0 && existingPayment.referenceId) {
         if (existingPayment.referenceType === 'sale') {
           const sale = await queryRunner.manager.findOne(Sale, {
-            where: { id: existingPayment.referenceId },
+            where: { id: existingPayment.referenceId, isDeleted: false },
           });
           if (sale) {
             const newPaidAmount = (sale.paidAmount || 0) + amountDiff;
@@ -215,7 +267,7 @@ export class PaymentService extends BaseService<Payment> {
           }
         } else if (existingPayment.referenceType === 'purchase') {
           const purchase = await queryRunner.manager.findOne(Purchase, {
-            where: { id: existingPayment.referenceId },
+            where: { id: existingPayment.referenceId, isDeleted: false },
           });
           if (purchase) {
             const newPaidAmount = (purchase.paidAmount || 0) + amountDiff;
