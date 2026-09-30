@@ -28,12 +28,12 @@ export class BaseFilterDTO {
   @ApiProperty({
     type: Number,
     description: 'Limit the number of results',
-    default: 10,
+    default: 20,
     required: false,
   })
   @IsOptional()
   @IsNumberString()
-  readonly limit: number = 10;
+  readonly limit: number = 20;
 
   @ApiProperty({ required: false })
   @IsBooleanString()

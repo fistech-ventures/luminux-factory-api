@@ -2,7 +2,9 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base';
 import { asyncForEach } from '@src/shared';
-import { DataSource, FindOptionsRelations, FindOptionsWhere, Not, Repository } from 'typeorm';
+import { Brackets, DataSource, FindOptionsRelations, FindOptionsWhere, Not, Repository } from 'typeorm';
+import { SuccessResponse } from '@src/app/types';
+import { pruneSoftDeleted } from '@src/shared/utils/dborm.utils';
 import { ProductCreateDTO } from '../dtos/product/create.dto';
 import { ProductVariantSkuDTO } from '../dtos/product/create.dto';
 import { ProductUpdateDTO, ProductVariantSkuUpdateDTO } from '../dtos/product/update.dto';
@@ -10,6 +12,7 @@ import { Product } from '../entities/product.entity';
 import { ProductVariantOption } from '../entities/productVariantOption.entity';
 import { ProductVariantSku } from '../entities/productVariantSku.entity';
 import { ProductVariantSkuValue } from '../entities/productVariantSkuValue.entity';
+import { ProductFilterDTO } from '../dtos/product/filter.dto';
 
 @Injectable()
 export class ProductService extends BaseService<Product> {
@@ -92,6 +95,58 @@ export class ProductService extends BaseService<Product> {
     }
 
     return this.findByIdBase(saved.id, { relations: this.RELATIONS });
+  }
+
+  async findInventory(filters: ProductFilterDTO): Promise<SuccessResponse<Product[]>> {
+    const page = Number(filters.page) || 1;
+    const limit = Number(filters.limit) || 20;
+    const skip = (page - 1) * limit;
+    const query = this._repo
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.variants', 'variants', 'variants.isDeleted = false')
+      .leftJoinAndSelect('variants.variant', 'variant', 'variant.isDeleted = false')
+      .leftJoinAndSelect('variants.variantOption', 'variantOption', 'variantOption.isDeleted = false')
+      .leftJoinAndSelect('product.skus', 'skus', 'skus.isDeleted = false')
+      .leftJoinAndSelect('skus.values', 'skuValues', 'skuValues.isDeleted = false')
+      .leftJoinAndSelect('skuValues.variant', 'skuVariant', 'skuVariant.isDeleted = false')
+      .leftJoinAndSelect('skuValues.variantOption', 'skuVariantOption', 'skuVariantOption.isDeleted = false')
+      .where('product.isDeleted = false')
+      .andWhere('product.stock > 0')
+      .distinct(true);
+
+    if (filters.isActive !== undefined) {
+      query.andWhere('product.isActive = :isActive', { isActive: String(filters.isActive) === 'true' });
+    }
+
+    if (filters.searchTerm?.trim()) {
+      const searchTerm = `%${filters.searchTerm.trim()}%`;
+      query.andWhere(
+        new Brackets((where) =>
+          where
+            .where('product.title ILIKE :searchTerm')
+            .orWhere('product.productCode ILIKE :searchTerm')
+            .orWhere('skus.productCode ILIKE :searchTerm')
+            .orWhere('variant.title ILIKE :searchTerm')
+            .orWhere('variantOption.title ILIKE :searchTerm')
+            .orWhere('skuVariant.title ILIKE :searchTerm')
+            .orWhere('skuVariantOption.title ILIKE :searchTerm'),
+        ),
+        { searchTerm },
+      );
+    }
+
+    const [products, total] = await query
+      .orderBy('product.createdAt', filters.sortOrder === 'ASC' ? 'ASC' : 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    return new SuccessResponse('Inventory fetched successfully', pruneSoftDeleted(products), {
+      total,
+      page,
+      limit,
+      skip,
+    });
   }
 
   async updateProduct(id: string, payload: ProductUpdateDTO): Promise<Product> {

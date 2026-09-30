@@ -31,6 +31,11 @@ export class ProductInternalController {
     return this.service.findAllBase(query, { relations: this.service.RELATIONS });
   }
 
+  @Get('inventory')
+  async findInventory(@Query() query: ProductFilterDTO): Promise<SuccessResponse<Product[]>> {
+    return this.service.findInventory(query);
+  }
+
   @Get('by-code/:productCode')
   async findByCode(@Param('productCode') productCode: string): Promise<Product> {
     // findOneBase() is a raw lookup helper, so the soft-delete filter is

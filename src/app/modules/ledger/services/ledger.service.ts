@@ -103,7 +103,7 @@ export class LedgerService extends BaseService<Ledger> {
     const { entityType, entityId, type, startDate, endDate, page, limit } = filters;
 
     // Soft-deleted ledger entries are never listed.
-    const where: FindOptionsWhere<Ledger> = { isDeleted: false };
+    const where: FindOptionsWhere<Ledger> = { isDeleted: false, isActive: true };
 
     if (entityType) {
       where.entityType = entityType;
@@ -152,7 +152,7 @@ export class LedgerService extends BaseService<Ledger> {
   ): Promise<{ totalDue: number; totalPaid: number; balance: number }> {
     // Soft-deleted ledger entries must not affect the balance.
     const entries = await this.find({
-      where: { entityType: 'customer', entityId: customerId, isDeleted: false },
+      where: { entityType: 'customer', entityId: customerId, isDeleted: false, isActive: true },
     });
 
     let totalDue = 0;
@@ -179,7 +179,7 @@ export class LedgerService extends BaseService<Ledger> {
     supplierId: string,
   ): Promise<{ totalDue: number; totalPaid: number; balance: number }> {
     const entries = await this.find({
-      where: { entityType: 'supplier', entityId: supplierId, isDeleted: false },
+      where: { entityType: 'supplier', entityId: supplierId, isDeleted: false, isActive: true },
     });
 
     let totalDue = 0;
@@ -214,7 +214,7 @@ export class LedgerService extends BaseService<Ledger> {
     employeeId: string,
   ): Promise<{ totalAdvance: number; totalExpense: number; balance: number }> {
     const entries = await this.find({
-      where: { entityType: 'employee', entityId: employeeId, isDeleted: false },
+      where: { entityType: 'employee', entityId: employeeId, isDeleted: false, isActive: true },
     });
 
     let totalAdvance = 0;
@@ -288,6 +288,7 @@ export class LedgerService extends BaseService<Ledger> {
           entityType,
           entityId,
           isDeleted: false,
+          isActive: true,
           transactionDate: LessThan(new Date(startDate)),
         },
         select: ['type', 'amount'],
@@ -324,6 +325,7 @@ export class LedgerService extends BaseService<Ledger> {
       entityType,
       entityId,
       isDeleted: false,
+      isActive: true,
     };
 
     if (startDate && endDate) {

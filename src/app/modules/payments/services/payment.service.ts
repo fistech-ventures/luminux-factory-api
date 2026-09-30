@@ -125,18 +125,17 @@ export class PaymentService extends BaseService<Payment> {
         }
       } else if (payload.referenceId && payload.referenceType === 'purchase') {
         const purchase = await queryRunner.manager.findOne(Purchase, {
-          where: { id: payload.referenceId, isDeleted: false },
+          where: { id: payload.referenceId, isDeleted: false, isActive: true },
         });
-        if (purchase) {
-          await queryRunner.manager.update(
-            Purchase,
-            { id: purchase.id },
-            {
-              paidAmount: (purchase.paidAmount || 0) + amount,
-              dueAmount: Math.max(0, (purchase.dueAmount || 0) - amount),
-            },
-          );
-        }
+        if (!purchase) throw new BadRequestException('Cannot add a payment to an inactive or missing purchase');
+        await queryRunner.manager.update(
+          Purchase,
+          { id: purchase.id },
+          {
+            paidAmount: (purchase.paidAmount || 0) + amount,
+            dueAmount: Math.max(0, (purchase.dueAmount || 0) - amount),
+          },
+        );
       }
 
       await commitTransaction(queryRunner);

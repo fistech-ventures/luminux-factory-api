@@ -21,7 +21,7 @@ export class InvestmentInternalController {
 
   @Get()
   async findAll(@Query() query: InvestmentFilterDTO): Promise<any> {
-    return this.investmentService.findAllBase(query, { relations: this.investmentService.RELATIONS });
+    return this.investmentService.findInvestments(query);
   }
 
   @Get(':id')

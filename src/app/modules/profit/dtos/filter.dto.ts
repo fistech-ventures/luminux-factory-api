@@ -8,7 +8,7 @@ export class ProfitFilterDTO {
   @IsNumberString()
   page?: string;
 
-  @ApiProperty({ type: Number, required: false, default: 10 })
+  @ApiProperty({ type: Number, required: false, default: 20 })
   @IsOptional()
   @IsNumberString()
   limit?: string;

@@ -211,6 +211,14 @@
       font-weight: bold;
     }
 
+    .electronic-invoice {
+      padding: 0 20px;
+      margin-bottom: 24px;
+      text-align: center;
+      font-size: 11px;
+      color: #333;
+    }
+
     .footer-image {
       width: 100%;
       height: auto;
@@ -334,6 +342,9 @@
 
     <!-- Footer Section -->
     <div class="footer-section">
+      {{#if isElectronicInvoice}}
+      <div class="electronic-invoice">Electronic invoice. This document was generated electronically and does not require a signature.</div>
+      {{else}}
       <!-- Signature Section -->
       <div class="signature-section">
         <div class="signature-box">
@@ -343,6 +354,7 @@
           <div class="signature-line">Prepared By</div>
         </div>
       </div>
+      {{/if}}
       <!-- Footer Image -->
       <div class="footer-image">
         {{#if footerImage}}

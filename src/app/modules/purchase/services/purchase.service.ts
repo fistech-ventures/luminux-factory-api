@@ -45,6 +45,7 @@ export class PurchaseService extends BaseService<Purchase> {
 
     try {
       const { items, paidAmount, ...restPayload } = payload;
+      const shouldSyncInventory = restPayload.isActive !== false;
 
       let totalQuantity = 0;
       let totalPurchaseAmount = 0;
@@ -108,14 +109,16 @@ export class PurchaseService extends BaseService<Purchase> {
                   where: { id: combination.skuId, productId, isDeleted: false },
                 });
                 if (!sku) throw new BadRequestException('SKU not found for the given product');
-                await queryRunner.manager.update(
-                  ProductVariantSku,
-                  { id: sku.id, isDeleted: false },
-                  {
-                    stockQuantity: (sku.stockQuantity || 0) + combination.quantity,
-                    sourcingPrice: combinationSourcingPrice,
-                  },
-                );
+                if (shouldSyncInventory) {
+                  await queryRunner.manager.update(
+                    ProductVariantSku,
+                    { id: sku.id, isDeleted: false },
+                    {
+                      stockQuantity: (sku.stockQuantity || 0) + combination.quantity,
+                      sourcingPrice: combinationSourcingPrice,
+                    },
+                  );
+                }
               } else if (combination.variantId) {
                 const variant = await queryRunner.manager.findOne(ProductVariantOption, {
                   where: { id: combination.variantId, productId, isDeleted: false },
@@ -123,41 +126,47 @@ export class PurchaseService extends BaseService<Purchase> {
                 if (!variant) {
                   throw new BadRequestException('Variant not found for the given product');
                 }
-                await queryRunner.manager.update(
-                  ProductVariantOption,
-                  { id: variant.id, isDeleted: false },
-                  { stockQuantity: (variant.stockQuantity || 0) + combination.quantity },
-                );
+                if (shouldSyncInventory) {
+                  await queryRunner.manager.update(
+                    ProductVariantOption,
+                    { id: variant.id, isDeleted: false },
+                    { stockQuantity: (variant.stockQuantity || 0) + combination.quantity },
+                  );
+                }
               } else {
                 throw new BadRequestException('A SKU or variant is required for each combination');
               }
             }
 
-            const currentStock = existingProduct.stock || 0;
-            const updatedStock = currentStock + itemQuantity;
-            const updatedSourcingPrice = updatedStock > 0
-              ? ((existingProduct.sourcingPrice || 0) * currentStock + weightedSourcingCost) /
-                updatedStock
-              : weightedSourcingCost / itemQuantity;
-            await queryRunner.manager.update(
-              Product,
-              { id: productId, isDeleted: false },
-              { stock: updatedStock, sourcingPrice: updatedSourcingPrice },
-            );
+            if (shouldSyncInventory) {
+              const currentStock = existingProduct.stock || 0;
+              const updatedStock = currentStock + itemQuantity;
+              const updatedSourcingPrice = updatedStock > 0
+                ? ((existingProduct.sourcingPrice || 0) * currentStock + weightedSourcingCost) /
+                  updatedStock
+                : weightedSourcingCost / itemQuantity;
+              await queryRunner.manager.update(
+                Product,
+                { id: productId, isDeleted: false },
+                { stock: updatedStock, sourcingPrice: updatedSourcingPrice },
+              );
+            }
           } else if (item.skuId) {
             // Legacy single-combination payloads remain supported.
             const sku = await queryRunner.manager.findOne(ProductVariantSku, {
               where: { id: item.skuId, productId, isDeleted: false },
             });
             if (!sku) throw new BadRequestException('SKU not found for the given product');
-            await queryRunner.manager.update(
-              ProductVariantSku,
-              { id: sku.id },
-              {
-                stockQuantity: (sku.stockQuantity || 0) + item.quantity,
-                sourcingPrice: calculatedSourcingPrice,
-              },
-            );
+            if (shouldSyncInventory) {
+              await queryRunner.manager.update(
+                ProductVariantSku,
+                { id: sku.id },
+                {
+                  stockQuantity: (sku.stockQuantity || 0) + item.quantity,
+                  sourcingPrice: calculatedSourcingPrice,
+                },
+              );
+            }
           } else if (item.variantId) {
             const variant = await queryRunner.manager.findOne(ProductVariantOption, {
               where: { id: item.variantId, productId, isDeleted: false },
@@ -165,17 +174,19 @@ export class PurchaseService extends BaseService<Purchase> {
             if (!variant) {
               throw new BadRequestException('Variant not found for the given product');
             }
-            await queryRunner.manager.update(
-              ProductVariantOption,
-              { id: variant.id },
-              { stockQuantity: (variant.stockQuantity || 0) + item.quantity },
-            );
+            if (shouldSyncInventory) {
+              await queryRunner.manager.update(
+                ProductVariantOption,
+                { id: variant.id },
+                { stockQuantity: (variant.stockQuantity || 0) + item.quantity },
+              );
+            }
           }
 
-          if (!combinations.length && !item.skuId) {
+          if (shouldSyncInventory && !combinations.length && !item.skuId) {
             await this.productService.updateSourcingPrice(item.productId, calculatedSourcingPrice);
           }
-          if (!combinations.length) {
+          if (shouldSyncInventory && !combinations.length) {
             await this.productService.updateStock(item.productId, item.quantity);
           }
         } else {
@@ -192,7 +203,9 @@ export class PurchaseService extends BaseService<Purchase> {
             throw new BadRequestException(`Product code already exists: ${productCode}`);
           }
 
-          const detailedStock = combinations.length
+          const detailedStock = !shouldSyncInventory
+            ? 0
+            : combinations.length
             ? itemQuantity
             : item.skus?.length
               ? item.skus.reduce((sum, sku) => sum + (sku.stockQuantity || 0), 0)
@@ -202,8 +215,8 @@ export class PurchaseService extends BaseService<Purchase> {
           const productData = ProductFactory.createProduct(
             productCode,
             item.productName,
-            calculatedSourcingPrice,
-            calculatedSourcingPrice,
+            shouldSyncInventory ? calculatedSourcingPrice : existingProduct?.sourcingPrice || 0,
+            shouldSyncInventory ? calculatedSourcingPrice : existingProduct?.sellingPrice || 0,
             detailedStock,
             item.unit,
           );
@@ -237,7 +250,8 @@ export class PurchaseService extends BaseService<Purchase> {
                 productId,
                 sellingPrice: variant.sellingPrice ?? calculatedSourcingPrice,
                 stockQuantity:
-                  (existingVariant?.stockQuantity || 0) + (variant.stockQuantity || 0),
+                  (existingVariant?.stockQuantity || 0) +
+                  (shouldSyncInventory ? variant.stockQuantity || 0 : 0),
                 isDeleted: false,
                 deletedAt: null,
               });
@@ -247,7 +261,7 @@ export class PurchaseService extends BaseService<Purchase> {
           if (item.skus?.length) {
             for (const sku of item.skus) {
               const { values, ...skuData } = sku;
-              await this.upsertPurchasedSku(queryRunner.manager, productId, skuData, values);
+              await this.upsertPurchasedSku(queryRunner.manager, productId, skuData, values, shouldSyncInventory);
             }
           }
 
@@ -261,10 +275,10 @@ export class PurchaseService extends BaseService<Purchase> {
                 combination.quantity;
               const savedSku = await this.upsertPurchasedSku(queryRunner.manager, productId, {
                 productCode: combination.productCode.trim(),
-                sourcingPrice: combinationSourcingPrice,
-                sellingPrice: combinationSourcingPrice,
-                stockQuantity: combination.quantity,
-              }, combination.values ?? []);
+                sourcingPrice: shouldSyncInventory ? combinationSourcingPrice : 0,
+                sellingPrice: shouldSyncInventory ? combinationSourcingPrice : 0,
+                stockQuantity: shouldSyncInventory ? combination.quantity : 0,
+              }, combination.values ?? [], shouldSyncInventory);
               combination.skuId = savedSku.id;
             }
           }
@@ -292,6 +306,7 @@ export class PurchaseService extends BaseService<Purchase> {
         totalPurchaseAmount,
         paidAmount,
         dueAmount,
+        isActive: shouldSyncInventory,
       });
 
       const savedPurchase = await queryRunner.manager.save(purchase);
@@ -335,7 +350,7 @@ export class PurchaseService extends BaseService<Purchase> {
         }
       }
 
-      if (dueAmount > 0) {
+      if (shouldSyncInventory && dueAmount > 0) {
         await this.ledgerService.createLedgerEntry({
           entityType: 'supplier',
           entityId: payload.supplierId,
@@ -348,7 +363,7 @@ export class PurchaseService extends BaseService<Purchase> {
         });
       }
 
-      if (paidAmount > 0) {
+      if (shouldSyncInventory && paidAmount > 0) {
         await this.ledgerService.createLedgerEntry({
           entityType: 'supplier',
           entityId: payload.supplierId,
@@ -416,6 +431,8 @@ export class PurchaseService extends BaseService<Purchase> {
       let newTotalQuantity = existingPurchase.totalQuantity;
       let newPaidAmount = existingPurchase.paidAmount;
       let newDueAmount = existingPurchase.dueAmount;
+      const purchaseWillBeActive = restPayload.isActive ?? existingPurchase.isActive ?? true;
+      const activeStateChanged = purchaseWillBeActive !== (existingPurchase.isActive ?? true);
       const ledgerDate = restPayload.purchaseDate ?? existingPurchase.purchaseDate;
 
       // Recalculate totals if items are provided
@@ -448,6 +465,14 @@ export class PurchaseService extends BaseService<Purchase> {
       }
 
       await queryRunner.manager.update(Purchase, { id }, updateData);
+
+      if (activeStateChanged) {
+        await this.syncPurchaseInventory(
+          queryRunner.manager,
+          existingPurchase.items ?? [],
+          purchaseWillBeActive,
+        );
+      }
 
       // Reconcile the ledger with the purchase's final state. This runs on
       // every update - not just when an amount changed - so an entry that
@@ -487,7 +512,7 @@ export class PurchaseService extends BaseService<Purchase> {
       await this.ledgerService.reconcileLedgerEntry(
         queryRunner.manager,
         dueEntry,
-        Boolean(dueEntry) || newDueAmount > 0,
+        purchaseWillBeActive && (Boolean(dueEntry) || newDueAmount > 0),
         {
           ...ledgerParty,
           type: 'due',
@@ -502,7 +527,7 @@ export class PurchaseService extends BaseService<Purchase> {
       await this.ledgerService.reconcileLedgerEntry(
         queryRunner.manager,
         paidEntry,
-        atPurchasePaidAmount > 0,
+        purchaseWillBeActive && atPurchasePaidAmount > 0,
         {
           ...ledgerParty,
           type: 'paid',
@@ -513,6 +538,40 @@ export class PurchaseService extends BaseService<Purchase> {
           transactionDate: ledgerDate,
         },
       );
+
+      if (activeStateChanged && linkedPayments.length) {
+        for (const payment of linkedPayments) {
+          await queryRunner.manager.update(
+            Payment,
+            { id: payment.id },
+            { isActive: purchaseWillBeActive },
+          );
+          const paymentLedgerEntry = await queryRunner.manager.findOne(Ledger, {
+            where: {
+              referenceId: payment.id,
+              referenceType: 'payment',
+            },
+            withDeleted: true,
+          });
+          await this.ledgerService.reconcileLedgerEntry(
+            queryRunner.manager,
+            paymentLedgerEntry,
+            purchaseWillBeActive,
+            {
+              entityType: payment.entityType,
+              entityId: payment.entityId,
+              type: 'paid',
+              amount: payment.amount,
+              referenceId: payment.id,
+              referenceType: 'payment',
+              description: payment.note
+                ? `Payment made to supplier - ${payment.note}`
+                : 'Payment made to supplier',
+              transactionDate: payment.paymentDate,
+            },
+          );
+        }
+      }
 
       await commitTransaction(queryRunner);
 
@@ -526,11 +585,71 @@ export class PurchaseService extends BaseService<Purchase> {
     }
   }
 
+  private async syncPurchaseInventory(
+    manager: EntityManager,
+    items: PurchaseItem[],
+    shouldBeActive: boolean,
+  ): Promise<void> {
+    const direction = shouldBeActive ? 1 : -1;
+
+    for (const item of items) {
+      if (!item.productId) continue;
+
+      const product = await manager.findOne(Product, {
+        where: { id: item.productId, isDeleted: false },
+      });
+      if (!product) {
+        if (shouldBeActive) throw new BadRequestException('Product not found while activating purchase');
+        continue;
+      }
+
+      const quantity = Number(item.quantity) || 0;
+      const stock = Math.max(0, (product.stock || 0) + direction * quantity);
+      const productUpdates: Partial<Product> = { stock };
+      if (shouldBeActive && !product.sourcingPrice && item.calculatedSourcingPrice) {
+        productUpdates.sourcingPrice = item.calculatedSourcingPrice;
+        if ((product.sellingPrice || 0) < item.calculatedSourcingPrice) {
+          productUpdates.sellingPrice = item.calculatedSourcingPrice;
+        }
+      }
+      await manager.update(Product, { id: product.id }, productUpdates);
+
+      if (item.skuId) {
+        const sku = await manager.findOne(ProductVariantSku, {
+          where: { id: item.skuId, productId: item.productId, isDeleted: false },
+        });
+        if (!sku) {
+          if (shouldBeActive) throw new BadRequestException('SKU not found while activating purchase');
+          continue;
+        }
+        const skuUpdates: Partial<ProductVariantSku> = {
+          stockQuantity: Math.max(0, (sku.stockQuantity || 0) + direction * quantity),
+        };
+        if (shouldBeActive && !sku.sourcingPrice && item.calculatedSourcingPrice) {
+          skuUpdates.sourcingPrice = item.calculatedSourcingPrice;
+        }
+        await manager.update(ProductVariantSku, { id: sku.id }, skuUpdates);
+      } else if (item.variantId) {
+        const variant = await manager.findOne(ProductVariantOption, {
+          where: { id: item.variantId, productId: item.productId, isDeleted: false },
+        });
+        if (!variant) {
+          if (shouldBeActive) throw new BadRequestException('Variant not found while activating purchase');
+          continue;
+        }
+        await manager.update(ProductVariantOption, { id: variant.id }, {
+          stockQuantity: Math.max(0, (variant.stockQuantity || 0) + direction * quantity),
+        });
+      }
+    }
+  }
+
   private async upsertPurchasedSku(
     manager: EntityManager,
     productId: string,
     skuData: Pick<ProductVariantSku, 'productCode' | 'sourcingPrice' | 'sellingPrice' | 'stockQuantity'>,
     values: Array<Pick<ProductVariantSkuValue, 'variantId' | 'variantOptionId'>>,
+    shouldSyncInventory: boolean,
   ): Promise<ProductVariantSku> {
     const productCode = skuData.productCode?.trim();
     if (!productCode) throw new BadRequestException('SKU code is required');
@@ -548,7 +667,10 @@ export class PurchaseService extends BaseService<Purchase> {
       ...skuData,
       productCode,
       productId,
-      stockQuantity: (existing?.stockQuantity || 0) + (skuData.stockQuantity || 0),
+      sourcingPrice: shouldSyncInventory ? skuData.sourcingPrice : existing?.sourcingPrice || 0,
+      sellingPrice: shouldSyncInventory ? skuData.sellingPrice : existing?.sellingPrice || 0,
+      stockQuantity:
+        (existing?.stockQuantity || 0) + (shouldSyncInventory ? skuData.stockQuantity || 0 : 0),
       isDeleted: false,
       deletedAt: null,
     });

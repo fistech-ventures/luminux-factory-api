@@ -14,11 +14,11 @@ export class VariantFilterDTO {
   @ApiProperty({
     type: Number,
     description: 'Limit the number of results',
-    example: 10,
+    example: 20,
     required: false,
   })
   @IsOptional()
-  readonly limit: number = 10;
+  readonly limit: number = 20;
 
   @ApiProperty({
     type: String,

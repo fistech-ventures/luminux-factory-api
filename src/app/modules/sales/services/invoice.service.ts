@@ -62,13 +62,13 @@ export class InvoiceService {
   }
 
   /** Renders the invoice HTML for a (fully loaded) sale. */
-  async renderInvoiceHtml(sale: Sale): Promise<string> {
-    return await this.renderInvoiceTemplate(sale, 'sale-invoice');
+  async renderInvoiceHtml(sale: Sale, isElectronicInvoice = false): Promise<string> {
+    return await this.renderInvoiceTemplate(sale, 'sale-invoice', isElectronicInvoice);
   }
 
   /** Generates the invoice PDF for a (fully loaded) sale. */
-  async generateInvoicePdf(sale: Sale): Promise<Buffer> {
-    const html = await this.renderInvoiceHtml(sale);
+  async generateInvoicePdf(sale: Sale, isElectronicInvoice = false): Promise<Buffer> {
+    const html = await this.renderInvoiceHtml(sale, isElectronicInvoice);
     return await this.pdfGeneratorHelper.createPDF(html, { format: 'A4' });
   }
 
@@ -104,7 +104,7 @@ export class InvoiceService {
       throw new Error(`Sale not found: ${saleId}`);
     }
 
-    const pdfBuffer = await this.generateInvoicePdf(sale);
+    const pdfBuffer = await this.generateInvoicePdf(sale, true);
     const fileName = `${sale.invoiceNo || sale.id}.pdf`;
 
     const url = await this.r2UploadHelper.uploadBinary(
@@ -123,7 +123,11 @@ export class InvoiceService {
   }
 
   /** Renders the invoice HTML for a (fully loaded) sale using the specified template. */
-  private async renderInvoiceTemplate(sale: Sale, templateName: string): Promise<string> {
+  private async renderInvoiceTemplate(
+    sale: Sale,
+    templateName: string,
+    isElectronicInvoice: boolean,
+  ): Promise<string> {
     let business: Record<string, any> = {};
     try {
       const config = await this.globalConfigService.getConfig();
@@ -214,6 +218,7 @@ export class InvoiceService {
       headerImage: headerImageBase64,
       footerImage: footerImageBase64,
       watermarkImage: watermarkImageBase64,
+      isElectronicInvoice,
     };
 
     return await this.htmlHelper.createHtmlContent(data, templateName);

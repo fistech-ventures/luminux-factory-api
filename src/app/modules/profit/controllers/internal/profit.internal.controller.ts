@@ -8,6 +8,7 @@ import {
   ProfitService,
 } from '../../services/profit.service';
 import { ProfitFilterDTO } from '../../dtos/filter.dto';
+import dayjs from 'dayjs';
 
 @ApiTags('Profit')
 @ApiBearerAuth()
@@ -18,11 +19,22 @@ export class ProfitInternalController {
 
   @Get()
   async getProfitList(@Query() query: ProfitFilterDTO): Promise<SuccessResponse<IProfitEntry[]>> {
-    return await this.profitService.getProfitList(query);
+    return await this.profitService.getProfitList(this.withDefaultCurrentMonth(query));
   }
 
   @Get('stats')
   async getProfitStats(@Query() query: ProfitFilterDTO): Promise<IProfitStats> {
-    return await this.profitService.getProfitStats(query);
+    return await this.profitService.getProfitStats(this.withDefaultCurrentMonth(query));
+  }
+
+  private withDefaultCurrentMonth(query: ProfitFilterDTO): ProfitFilterDTO {
+    if (query.startDate || query.endDate) return query;
+
+    const today = dayjs();
+    return {
+      ...query,
+      startDate: today.startOf('month').format('YYYY-MM-DD'),
+      endDate: today.format('YYYY-MM-DD'),
+    };
   }
 }

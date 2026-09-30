@@ -1,10 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 import { ENUM_PAYMENT_METHODS } from '@src/shared';
 import { PurchaseItemDTO } from './purchase-item.dto';
 
 export class UpdatePurchaseDTO {
+  @ApiProperty({ type: Boolean, required: false })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
   @ApiProperty({ type: Date, required: false, example: '2026-09-05' })
   @IsOptional()
   @Type(() => Date)
