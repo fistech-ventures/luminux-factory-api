@@ -36,6 +36,8 @@ import { ProductVariantOptionService } from '../../product/services/productVaria
 import { LedgerService } from '../../ledger/services/ledger.service';
 import { Ledger } from '../../ledger/entities/ledger.entity';
 import { InvoiceService } from './invoice.service';
+import { RawMaterial } from '../../rawMaterial/entities/rawMaterial.entity';
+import { RawMaterialCombination } from '../../rawMaterial/entities/rawMaterialCombination.entity';
 
 @Injectable()
 export class SaleService extends BaseService<Sale> {
@@ -86,6 +88,7 @@ export class SaleService extends BaseService<Sale> {
       let totalAmount = 0;
       const resolvedItems: Array<{
         item: SaleItemDTO;
+        itemType: 'product' | 'rawMaterial';
         unitPrice: number;
         unitCost: number;
         itemTotalAmount: number;
@@ -97,7 +100,13 @@ export class SaleService extends BaseService<Sale> {
           queryRunner.manager,
         );
         totalAmount += itemTotalAmount;
-        resolvedItems.push({ item, unitPrice, unitCost, itemTotalAmount });
+        resolvedItems.push({
+          item,
+          itemType: item.itemType ?? 'product',
+          unitPrice,
+          unitCost,
+          itemTotalAmount,
+        });
       }
 
       const grandTotal = totalAmount - (discount || 0);
@@ -129,10 +138,14 @@ export class SaleService extends BaseService<Sale> {
       // Now insert the items with the real saleId.
       const saleItems: SaleItem[] = [];
 
-      for (const { item, unitPrice, unitCost, itemTotalAmount } of resolvedItems) {
+      for (const { item, itemType, unitPrice, unitCost, itemTotalAmount } of resolvedItems) {
         const saleItem = queryRunner.manager.create(SaleItem, {
           saleId: savedSale.id,
-          productId: item.productId,
+          productId: itemType === 'product' ? item.productId : null,
+          rawMaterialId: itemType === 'rawMaterial' ? item.rawMaterialId : null,
+          rawMaterialCombinationId:
+            itemType === 'rawMaterial' ? item.rawMaterialCombinationId ?? null : null,
+          itemType,
           variantId: item.variantId ?? null,
           skuId: item.skuId ?? null,
           quantity: item.quantity,
@@ -146,7 +159,8 @@ export class SaleService extends BaseService<Sale> {
       }
 
       // Keep the per-product B2B / B2C average selling price up to date.
-      for (const { item, unitPrice } of resolvedItems) {
+      for (const { item, itemType, unitPrice } of resolvedItems) {
+        if (itemType === 'rawMaterial' || !item.productId) continue;
         await this.updateProductAverageSalesPrice(
           queryRunner.manager,
           item.productId,
@@ -413,6 +427,43 @@ export class SaleService extends BaseService<Sale> {
       );
 
       for (const item of sale.items || []) {
+        if (item.itemType === 'rawMaterial' || item.rawMaterialId) {
+          if (item.rawMaterialCombinationId) {
+            const combination = await queryRunner.manager.findOne(RawMaterialCombination, {
+              where: { id: item.rawMaterialCombinationId, isDeleted: false },
+            });
+            if (combination) {
+              combination.stock = (Number(combination.stock) || 0) + (Number(item.quantity) || 0);
+              combination.saleQuantity = Math.max(
+                0,
+                (Number(combination.saleQuantity) || 0) - (Number(item.quantity) || 0),
+              );
+              await queryRunner.manager.save(combination);
+              await this.recalculateRawMaterialInventory(
+                queryRunner.manager,
+                combination.rawMaterialId,
+              );
+            }
+            continue;
+          }
+          const rawMaterial = await queryRunner.manager.findOne(RawMaterial, {
+            where: { id: item.rawMaterialId, isDeleted: false },
+          });
+          if (rawMaterial) {
+            await queryRunner.manager.update(
+              RawMaterial,
+              { id: rawMaterial.id, isDeleted: false },
+              {
+                stock: (Number(rawMaterial.stock) || 0) + (Number(item.quantity) || 0),
+                saleQuantity: Math.max(
+                  0,
+                  (Number(rawMaterial.saleQuantity) || 0) - (Number(item.quantity) || 0),
+                ),
+              },
+            );
+          }
+          continue;
+        }
         if (item.skuId) {
           const sku = await queryRunner.manager.findOne(ProductVariantSku, {
             where: { id: item.skuId, isDeleted: false },
@@ -521,6 +572,54 @@ export class SaleService extends BaseService<Sale> {
     item: SaleItemDTO,
     manager: EntityManager,
   ): Promise<{ unitPrice: number; unitCost: number; itemTotalAmount: number }> {
+    if (item.itemType === 'rawMaterial' || item.rawMaterialId) {
+      if (!item.rawMaterialId) throw new BadRequestException('Raw material is required');
+      const rawMaterial = await manager.findOne(RawMaterial, {
+        where: { id: item.rawMaterialId, isDeleted: false },
+        relations: { combinations: true },
+      });
+      if (!rawMaterial) throw new NotFoundException('Raw material not found');
+      if (item.rawMaterialCombinationId) {
+        const combination = (rawMaterial.combinations ?? []).find(
+          (candidate) =>
+            candidate.id === item.rawMaterialCombinationId && !candidate.isDeleted,
+        );
+        if (!combination) throw new NotFoundException('Raw-material combination not found');
+        const unitPrice = item.sellingPrice;
+        if (unitPrice === undefined || unitPrice < 0) {
+          throw new BadRequestException(`Invalid selling price for raw material: ${rawMaterial.title}`);
+        }
+        if ((Number(combination.stock) || 0) < item.quantity) {
+          throw new BadRequestException(`Insufficient stock for raw-material combination "${combination.title}"`);
+        }
+        combination.stock = (Number(combination.stock) || 0) - item.quantity;
+        combination.saleQuantity = (Number(combination.saleQuantity) || 0) + item.quantity;
+        await manager.save(combination);
+        await this.recalculateRawMaterialInventory(manager, rawMaterial.id);
+        return {
+          unitPrice,
+          unitCost: Number(combination.sourcingPrice) || 0,
+          itemTotalAmount: unitPrice * item.quantity,
+        };
+      }
+      if ((rawMaterial.combinations ?? []).some((combination) => !combination.isDeleted)) {
+        throw new BadRequestException('Select a raw-material combination for this sale');
+      }
+      const unitPrice = item.sellingPrice;
+      if (unitPrice === undefined || unitPrice < 0) {
+        throw new BadRequestException(`Invalid selling price for raw material: ${rawMaterial.title}`);
+      }
+      await manager.update(RawMaterial, { id: rawMaterial.id }, {
+        stock: (Number(rawMaterial.stock) || 0) - item.quantity,
+        saleQuantity: (Number(rawMaterial.saleQuantity) || 0) + item.quantity,
+      });
+      return {
+        unitPrice,
+        unitCost: Number(rawMaterial.sourcingPrice) || 0,
+        itemTotalAmount: unitPrice * item.quantity,
+      };
+    }
+    if (!item.productId) throw new BadRequestException('Product is required');
     const product = await this.productService.isExist({ id: item.productId as any });
 
     let unitCost = product.sourcingPrice || 0;
@@ -610,6 +709,42 @@ export class SaleService extends BaseService<Sale> {
     );
 
     return { unitPrice, unitCost, itemTotalAmount: unitPrice * item.quantity };
+  }
+
+  private async recalculateRawMaterialInventory(
+    manager: EntityManager,
+    rawMaterialId: string,
+  ): Promise<void> {
+    const rawMaterial = await manager.findOne(RawMaterial, {
+      where: { id: rawMaterialId, isDeleted: false },
+    });
+    if (!rawMaterial) return;
+    const combinations = await manager.find(RawMaterialCombination, {
+      where: { rawMaterialId, isDeleted: false },
+    });
+    const totalStock = combinations.reduce(
+      (sum, combination) => sum + (Number(combination.stock) || 0),
+      0,
+    );
+    const weightedPrice = (key: 'sourcingPrice' | 'sellingPrice'): number =>
+      totalStock > 0
+        ? combinations.reduce(
+            (sum, combination) =>
+              sum + (Number(combination[key]) || 0) * (Number(combination.stock) || 0),
+            0,
+          ) / totalStock
+        : combinations.length
+          ? combinations.reduce((sum, combination) => sum + (Number(combination[key]) || 0), 0) /
+            combinations.length
+          : 0;
+    rawMaterial.stock = totalStock;
+    rawMaterial.saleQuantity = combinations.reduce(
+      (sum, combination) => sum + (Number(combination.saleQuantity) || 0),
+      0,
+    );
+    rawMaterial.sourcingPrice = weightedPrice('sourcingPrice');
+    rawMaterial.sellingPrice = weightedPrice('sellingPrice');
+    await manager.save(rawMaterial);
   }
 
   /**

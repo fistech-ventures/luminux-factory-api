@@ -7,6 +7,7 @@ import { SaleService } from './services/sale.service';
 import { InvoiceService } from './services/invoice.service';
 import { ProductModule } from '../product/product.module';
 import { CustomerModule } from '../customer/customer.module';
+import { RawMaterialModule } from '../rawMaterial/rawMaterial.module';
 
 const entities = [Sale, SaleItem];
 const services = [SaleService, InvoiceService];
@@ -15,7 +16,7 @@ const webControllers = [];
 const internalControllers = [SaleInternalController];
 
 @Module({
-  imports: [TypeOrmModule.forFeature(entities), ProductModule, CustomerModule],
+  imports: [TypeOrmModule.forFeature(entities), ProductModule, CustomerModule, RawMaterialModule],
   providers: [...services, ...subscribers],
   exports: [...services, ...subscribers, TypeOrmModule],
   controllers: [...webControllers, ...internalControllers],

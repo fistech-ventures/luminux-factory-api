@@ -11,6 +11,8 @@ import { AuthGuard } from './modules/auth/guards/local-auth.guard';
 import { GalleryModule } from './modules/gallery/gallery.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { ProductModule } from './modules/product/product.module';
+import { RawMaterialModule } from './modules/rawMaterial/rawMaterial.module';
+import { ProductionModule } from './modules/production/production.module';
 import { UserModule } from './modules/user/user.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
@@ -37,6 +39,8 @@ const MODULES = [
   UserModule,
   NotificationModule,
   ProductModule,
+  RawMaterialModule,
+  ProductionModule,
   CustomerModule,
   SupplierModule,
   EmployeeModule,

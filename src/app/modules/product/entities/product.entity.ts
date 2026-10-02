@@ -18,6 +18,9 @@ export class Product extends BaseEntity {
   title?: string;
 
   @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
+  description?: string;
+
+  @Column({ type: ENUM_COLUMN_TYPES.TEXT, nullable: true })
   warranty?: string;
 
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
@@ -33,7 +36,7 @@ export class Product extends BaseEntity {
   @Column({ length: 100, type: ENUM_COLUMN_TYPES.VARCHAR, nullable: false, unique: true })
   productCode?: string;
 
-  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
+  @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
   stock?: number;
 
   @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })

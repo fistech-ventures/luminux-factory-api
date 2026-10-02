@@ -23,6 +23,8 @@ import { ProductVariantSkuValue } from '../../product/entities/productVariantSku
 import { LedgerService } from '../../ledger/services/ledger.service';
 import { Ledger } from '../../ledger/entities/ledger.entity';
 import { SuccessResponse } from '@src/app/types';
+import { RawMaterial } from '../../rawMaterial/entities/rawMaterial.entity';
+import { RawMaterialCombination } from '../../rawMaterial/entities/rawMaterialCombination.entity';
 
 @Injectable()
 export class PurchaseService extends BaseService<Purchase> {
@@ -53,11 +55,21 @@ export class PurchaseService extends BaseService<Purchase> {
       // First resolve each product (create new products when not in inventory)
       // and compute the purchase totals.
       const resolvedItems: Array<
-        PurchaseItemDTO & { productId: string; calculatedSourcingPrice: number }
+        PurchaseItemDTO & {
+          itemType: 'product' | 'rawMaterial';
+          productId?: string;
+          rawMaterialId?: string;
+          rawMaterialCombinationId?: string;
+          calculatedSourcingPrice: number;
+        }
       > = [];
 
       for (const item of items) {
+        const itemType = item.itemType ?? 'product';
         const combinations = item.combinations ?? [];
+        if (itemType === 'rawMaterial' && (item.skus?.length || item.variants?.length)) {
+          throw new BadRequestException('Raw material purchases do not support product variants');
+        }
         if (
           combinations.some(
             (combination) =>
@@ -77,9 +89,130 @@ export class PurchaseService extends BaseService<Purchase> {
           : item.otherCost;
         const calculatedSourcingPrice = (itemTotalProductCost + itemOtherCost) / itemQuantity;
 
-        let productId: string;
+        let productId: string | undefined;
+        let rawMaterialId: string | undefined;
+        let rawMaterialCombinationId: string | undefined;
 
-        if (item.productId) {
+        if (itemType === 'rawMaterial') {
+          if (item.rawMaterialId) {
+            const rawMaterial = await queryRunner.manager.findOne(RawMaterial, {
+              where: { id: item.rawMaterialId, isDeleted: false },
+              relations: { combinations: true },
+            });
+            if (!rawMaterial) throw new BadRequestException('Raw material not found');
+            rawMaterialId = rawMaterial.id;
+            if (item.unit) rawMaterial.unit = item.unit;
+            const activeCombinations = (rawMaterial.combinations ?? []).filter(
+              (combination) => !combination.isDeleted,
+            );
+
+            if (combinations.length) {
+              for (const combination of combinations) {
+                const unitCost =
+                  (combination.totalProductCost + (combination.otherCost ?? 0)) /
+                  combination.quantity;
+                if (combination.rawMaterialCombinationId) {
+                  const selectedCombination = activeCombinations.find(
+                    (candidate) => candidate.id === combination.rawMaterialCombinationId,
+                  );
+                  if (!selectedCombination) {
+                    throw new BadRequestException('Raw-material combination not found');
+                  }
+                  combination.rawMaterialCombinationId = selectedCombination.id;
+                  if (shouldSyncInventory) {
+                    const oldStock = Number(selectedCombination.stock) || 0;
+                    const newStock = oldStock + combination.quantity;
+                    selectedCombination.sourcingPrice =
+                      newStock > 0
+                        ? ((Number(selectedCombination.sourcingPrice) || 0) * oldStock +
+                            unitCost * combination.quantity) /
+                          newStock
+                        : unitCost;
+                    selectedCombination.stock = newStock;
+                    await queryRunner.manager.save(selectedCombination);
+                  }
+                } else {
+                  throw new BadRequestException('Select a raw-material combination for each purchase line');
+                }
+              }
+              if (shouldSyncInventory) {
+                await this.updateRawMaterialAggregates(queryRunner.manager, rawMaterial.id);
+              }
+            } else if (item.rawMaterialCombinationId) {
+              const selectedCombination = activeCombinations.find(
+                (combination) => combination.id === item.rawMaterialCombinationId,
+              );
+              if (!selectedCombination) {
+                throw new BadRequestException('Raw-material combination not found');
+              }
+              rawMaterialCombinationId = selectedCombination.id;
+              if (shouldSyncInventory) {
+                const oldStock = Number(selectedCombination.stock) || 0;
+                const newStock = oldStock + itemQuantity;
+                selectedCombination.sourcingPrice =
+                  newStock > 0
+                    ? ((Number(selectedCombination.sourcingPrice) || 0) * oldStock +
+                        calculatedSourcingPrice * itemQuantity) /
+                      newStock
+                    : calculatedSourcingPrice;
+                selectedCombination.stock = newStock;
+                await queryRunner.manager.save(selectedCombination);
+                await this.updateRawMaterialAggregates(queryRunner.manager, rawMaterial.id);
+              }
+            } else if (activeCombinations.length) {
+              throw new BadRequestException('Select a raw-material combination for this purchase');
+            } else if (shouldSyncInventory) {
+              const currentStock = Number(rawMaterial.stock) || 0;
+              const updatedStock = currentStock + itemQuantity;
+              rawMaterial.sourcingPrice =
+                updatedStock > 0
+                  ? ((Number(rawMaterial.sourcingPrice) || 0) * currentStock +
+                      calculatedSourcingPrice * itemQuantity) /
+                    updatedStock
+                  : calculatedSourcingPrice;
+              rawMaterial.stock = updatedStock;
+              await queryRunner.manager.save(rawMaterial);
+            }
+          } else {
+            const rawMaterialName = item.rawMaterialName?.trim() || item.productName?.trim();
+            if (!rawMaterialName) {
+              throw new BadRequestException('Raw material name is required for a new raw material');
+            }
+            const createdRawMaterial = await queryRunner.manager.save(
+              RawMaterial,
+              queryRunner.manager.create(RawMaterial, {
+                title: rawMaterialName,
+                unit: item.unit,
+                stock: shouldSyncInventory ? itemQuantity : 0,
+                sourcingPrice: shouldSyncInventory ? calculatedSourcingPrice : 0,
+              }),
+            );
+            rawMaterialId = createdRawMaterial.id;
+            if (combinations.length) {
+              for (const combination of combinations) {
+                const combinationSourcingPrice =
+                  (combination.totalProductCost + (combination.otherCost ?? 0)) /
+                  combination.quantity;
+                const createdCombination = await queryRunner.manager.save(
+                  RawMaterialCombination,
+                  queryRunner.manager.create(RawMaterialCombination, {
+                    rawMaterialId: createdRawMaterial.id,
+                    title: combination.name?.trim() || combination.productCode?.trim() || 'Combination',
+                    code: combination.productCode?.trim(),
+                    unit: combination.unit ?? item.unit,
+                    sourcingPrice: shouldSyncInventory ? combinationSourcingPrice : 0,
+                    sellingPrice: shouldSyncInventory ? combinationSourcingPrice : 0,
+                    stock: shouldSyncInventory ? combination.quantity : 0,
+                  }),
+                );
+                combination.rawMaterialCombinationId = createdCombination.id;
+              }
+              if (shouldSyncInventory) {
+                await this.updateRawMaterialAggregates(queryRunner.manager, createdRawMaterial.id);
+              }
+            }
+          }
+        } else if (item.productId) {
           productId = item.productId;
           const existingProduct = await queryRunner.manager.findOne(Product, {
             where: { id: item.productId, isDeleted: false },
@@ -293,6 +426,9 @@ export class PurchaseService extends BaseService<Purchase> {
           totalProductCost: itemTotalProductCost,
           otherCost: itemOtherCost,
           productId,
+          rawMaterialId,
+          rawMaterialCombinationId,
+          itemType,
           calculatedSourcingPrice,
         });
       }
@@ -320,6 +456,7 @@ export class PurchaseService extends BaseService<Purchase> {
           ? combinations.map((combination) => ({
               variantId: combination.variantId ?? null,
               skuId: combination.skuId ?? null,
+              rawMaterialCombinationId: combination.rawMaterialCombinationId ?? null,
               productName: combination.name ?? item.productName,
               quantity: combination.quantity,
               totalProductCost: combination.totalProductCost,
@@ -332,6 +469,7 @@ export class PurchaseService extends BaseService<Purchase> {
               {
                 variantId: item.variantId ?? null,
                 skuId: item.skuId ?? null,
+                rawMaterialCombinationId: item.rawMaterialCombinationId ?? null,
                 productName: item.productName,
                 quantity: item.quantity,
                 totalProductCost: item.totalProductCost,
@@ -343,7 +481,10 @@ export class PurchaseService extends BaseService<Purchase> {
         for (const line of purchaseLines) {
           const purchaseItem = queryRunner.manager.create(PurchaseItem, {
             purchaseId: savedPurchase.id,
-            productId: item.productId,
+            productId: item.productId ?? null,
+            rawMaterialId: item.rawMaterialId ?? null,
+            rawMaterialCombinationId: line.rawMaterialCombinationId ?? null,
+            itemType: item.itemType,
             ...line,
           });
           purchaseItems.push(await queryRunner.manager.save(purchaseItem));
@@ -389,11 +530,18 @@ export class PurchaseService extends BaseService<Purchase> {
   }
 
   async deleteOneBase(id: string): Promise<SuccessResponse> {
-    const purchase = await this.findOne({ where: { id: id as any } });
+    const purchase = await this.findOne({
+      where: { id: id as any },
+      relations: ['items'],
+    });
     if (!purchase) throw new NotFoundException('Purchase not found');
 
     const queryRunner = await startTransaction(this.dataSource);
     try {
+      if (purchase.isActive !== false) {
+        await this.syncPurchaseInventory(queryRunner.manager, purchase.items ?? [], false);
+      }
+
       const deletedAt = new Date();
       await queryRunner.manager.update(
         Purchase,
@@ -593,6 +741,57 @@ export class PurchaseService extends BaseService<Purchase> {
     const direction = shouldBeActive ? 1 : -1;
 
     for (const item of items) {
+      if (item.rawMaterialCombinationId) {
+        const combination = await manager.findOne(RawMaterialCombination, {
+          where: {
+            id: item.rawMaterialCombinationId,
+            rawMaterialId: item.rawMaterialId,
+            isDeleted: false,
+          },
+        });
+        if (!combination) {
+          if (shouldBeActive) {
+            throw new BadRequestException('Raw-material combination not found while activating purchase');
+          }
+          continue;
+        }
+        const quantity = Number(item.quantity) || 0;
+        const currentStock = Number(combination.stock) || 0;
+        const updatedStock = Math.max(0, currentStock + direction * quantity);
+        if (shouldBeActive && updatedStock > 0) {
+          combination.sourcingPrice =
+            ((Number(combination.sourcingPrice) || 0) * currentStock +
+              (Number(item.calculatedSourcingPrice) || 0) * quantity) /
+            updatedStock;
+        }
+        combination.stock = updatedStock;
+        await manager.save(combination);
+        await this.updateRawMaterialAggregates(manager, item.rawMaterialId);
+        continue;
+      }
+      if (item.rawMaterialId) {
+        const rawMaterial = await manager.findOne(RawMaterial, {
+          where: { id: item.rawMaterialId, isDeleted: false },
+        });
+        if (!rawMaterial) {
+          if (shouldBeActive) {
+            throw new BadRequestException('Raw material not found while activating purchase');
+          }
+          continue;
+        }
+        const quantity = Number(item.quantity) || 0;
+        const currentStock = Number(rawMaterial.stock) || 0;
+        const updatedStock = Math.max(0, currentStock + direction * quantity);
+        if (shouldBeActive && updatedStock > 0) {
+          rawMaterial.sourcingPrice =
+            ((Number(rawMaterial.sourcingPrice) || 0) * currentStock +
+              (Number(item.calculatedSourcingPrice) || 0) * quantity) /
+            updatedStock;
+        }
+        rawMaterial.stock = updatedStock;
+        await manager.save(rawMaterial);
+        continue;
+      }
       if (!item.productId) continue;
 
       const product = await manager.findOne(Product, {
@@ -642,6 +841,45 @@ export class PurchaseService extends BaseService<Purchase> {
         });
       }
     }
+  }
+
+  private async updateRawMaterialAggregates(
+    manager: EntityManager,
+    rawMaterialId: string,
+  ): Promise<void> {
+    const [rawMaterial, combinations] = await Promise.all([
+      manager.findOne(RawMaterial, { where: { id: rawMaterialId, isDeleted: false } }),
+      manager.find(RawMaterialCombination, {
+        where: { rawMaterialId, isDeleted: false },
+      }),
+    ]);
+    if (!rawMaterial) throw new BadRequestException('Raw material not found');
+
+    const totalStock = combinations.reduce(
+      (sum, combination) => sum + (Number(combination.stock) || 0),
+      0,
+    );
+    const average = (key: 'sourcingPrice' | 'sellingPrice'): number =>
+      totalStock > 0
+        ? combinations.reduce(
+            (sum, combination) =>
+              sum +
+              (Number(combination[key]) || 0) * (Number(combination.stock) || 0),
+            0,
+          ) / totalStock
+        : combinations.length
+          ? combinations.reduce((sum, combination) => sum + (Number(combination[key]) || 0), 0) /
+            combinations.length
+          : 0;
+
+    rawMaterial.stock = totalStock;
+    rawMaterial.saleQuantity = combinations.reduce(
+      (sum, combination) => sum + (Number(combination.saleQuantity) || 0),
+      0,
+    );
+    rawMaterial.sourcingPrice = average('sourcingPrice');
+    rawMaterial.sellingPrice = average('sellingPrice');
+    await manager.save(rawMaterial);
   }
 
   private async upsertPurchasedSku(

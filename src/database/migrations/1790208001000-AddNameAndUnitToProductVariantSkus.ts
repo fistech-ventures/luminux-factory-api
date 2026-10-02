@@ -4,6 +4,8 @@ export class AddNameAndUnitToProductVariantSkus1790208001000 implements Migratio
   name = 'AddNameAndUnitToProductVariantSkus1790208001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('product_variant_skus'))) return;
+
     await queryRunner.query(
       'ALTER TABLE "product_variant_skus" ADD COLUMN IF NOT EXISTS "name" varchar(255)',
     );
@@ -13,6 +15,8 @@ export class AddNameAndUnitToProductVariantSkus1790208001000 implements Migratio
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('product_variant_skus'))) return;
+
     await queryRunner.query(
       'ALTER TABLE "product_variant_skus" DROP COLUMN IF EXISTS "unit"',
     );

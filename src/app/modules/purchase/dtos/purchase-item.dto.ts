@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 import {
   ProductVariantOptionDTO,
   ProductVariantSkuDTO,
@@ -13,6 +13,11 @@ export class PurchaseCombinationDTO {
   @IsString()
   @MaxLength(255)
   name?: string;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  rawMaterialCombinationId?: string;
 
   @ApiProperty({ type: String, required: true })
   @IsOptional()
@@ -33,6 +38,7 @@ export class PurchaseCombinationDTO {
   @ApiProperty({ type: Number, required: true })
   @IsNotEmpty()
   @IsNumber()
+  @Min(0.000001)
   quantity!: number;
 
   @ApiProperty({ type: String, required: false })
@@ -60,6 +66,11 @@ export class PurchaseCombinationDTO {
 }
 
 export class PurchaseItemDTO {
+  @ApiProperty({ type: String, enum: ['product', 'rawMaterial'], required: false, default: 'product' })
+  @IsOptional()
+  @IsIn(['product', 'rawMaterial'])
+  itemType?: 'product' | 'rawMaterial';
+
   @ApiProperty({
     type: String,
     required: false,
@@ -69,6 +80,22 @@ export class PurchaseItemDTO {
   @IsOptional()
   @IsString()
   productId?: string;
+
+  @ApiProperty({ type: String, required: false, description: 'Existing raw material id' })
+  @IsOptional()
+  @IsString()
+  rawMaterialId?: string;
+
+  @ApiProperty({ type: String, required: false, description: 'Raw-material combination id' })
+  @IsOptional()
+  @IsString()
+  rawMaterialCombinationId?: string;
+
+  @ApiProperty({ type: String, required: false, description: 'Name for a new raw material' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  rawMaterialName?: string;
 
   @ApiProperty({
     type: String,
@@ -111,6 +138,7 @@ export class PurchaseItemDTO {
   @ApiProperty({ type: Number, required: true, example: 10 })
   @IsNotEmpty()
   @IsNumber()
+  @Min(0.000001)
   quantity: number;
 
   @ApiProperty({ type: Number, required: true, example: 1000 })

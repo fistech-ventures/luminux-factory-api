@@ -5,6 +5,8 @@ import { Sale } from './sale.entity';
 import { Product } from '../../product/entities/product.entity';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
 import { ProductVariantSku } from '../../product/entities/productVariantSku.entity';
+import { RawMaterial } from '../../rawMaterial/entities/rawMaterial.entity';
+import { RawMaterialCombination } from '../../rawMaterial/entities/rawMaterialCombination.entity';
 
 @Entity(ENUM_TABLE_NAMES.SALE_ITEMS, { orderBy: { createdAt: 'DESC' } })
 export class SaleItem extends BaseEntity {
@@ -16,13 +18,32 @@ export class SaleItem extends BaseEntity {
   @Column({ nullable: false })
   saleId?: string;
 
-  @ManyToOne(() => Product, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Product, { onDelete: 'RESTRICT', nullable: true })
   product?: Product;
 
   @Index()
   @RelationId((item: SaleItem) => item.product)
-  @Column({ nullable: false })
+  @Column({ nullable: true })
   productId?: string;
+
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 20, nullable: false, default: 'product' })
+  itemType?: 'product' | 'rawMaterial';
+
+  @ManyToOne(() => RawMaterial, { onDelete: 'RESTRICT', nullable: true })
+  rawMaterial?: RawMaterial;
+
+  @Index()
+  @RelationId((item: SaleItem) => item.rawMaterial)
+  @Column({ nullable: true })
+  rawMaterialId?: string;
+
+  @ManyToOne(() => RawMaterialCombination, { onDelete: 'RESTRICT', nullable: true })
+  rawMaterialCombination?: RawMaterialCombination;
+
+  @Index()
+  @RelationId((item: SaleItem) => item.rawMaterialCombination)
+  @Column({ nullable: true })
+  rawMaterialCombinationId?: string;
 
   @ManyToOne(() => ProductVariantOption, { onDelete: 'RESTRICT' })
   variant?: ProductVariantOption;
@@ -40,7 +61,7 @@ export class SaleItem extends BaseEntity {
   @Column({ nullable: true })
   skuId?: string;
 
-  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false })
+  @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })
   quantity?: number;
 
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })

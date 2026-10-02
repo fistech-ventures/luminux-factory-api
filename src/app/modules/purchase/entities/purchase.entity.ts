@@ -27,7 +27,7 @@ export class Purchase extends BaseEntity {
   @OneToMany(() => PurchaseItem, (item) => item.purchase)
   items?: PurchaseItem[];
 
-  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false, default: 0 })
+  @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
   totalQuantity?: number;
 
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })

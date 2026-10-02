@@ -13,13 +13,13 @@ import { Employee } from '../modules/employee/entities/employee.entity';
  * counterparty.
  */
 export const SALE_DETAIL_RELATIONS = {
-  items: { product: true, variant: { variant: true, variantOption: true }, sku: { values: { variant: true, variantOption: true } } },
+  items: { product: true, rawMaterial: { combinations: true }, rawMaterialCombination: true, variant: { variant: true, variantOption: true }, sku: { values: { variant: true, variantOption: true } } },
   customer: true,
   soldBy: true,
 };
 
 export const PURCHASE_DETAIL_RELATIONS = {
-  items: { product: true, variant: { variant: true, variantOption: true }, sku: { values: { variant: true, variantOption: true } } },
+  items: { product: true, rawMaterial: { combinations: true }, rawMaterialCombination: true, variant: { variant: true, variantOption: true }, sku: { values: { variant: true, variantOption: true } } },
   supplier: true,
   purchasedBy: true,
 };

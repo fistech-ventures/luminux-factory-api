@@ -5,6 +5,8 @@ import { Purchase } from './purchase.entity';
 import { Product } from '../../product/entities/product.entity';
 import { ProductVariantOption } from '../../product/entities/productVariantOption.entity';
 import { ProductVariantSku } from '../../product/entities/productVariantSku.entity';
+import { RawMaterial } from '../../rawMaterial/entities/rawMaterial.entity';
+import { RawMaterialCombination } from '../../rawMaterial/entities/rawMaterialCombination.entity';
 
 @Entity(ENUM_TABLE_NAMES.PURCHASE_ITEMS, { orderBy: { createdAt: 'DESC' } })
 export class PurchaseItem extends BaseEntity {
@@ -23,6 +25,25 @@ export class PurchaseItem extends BaseEntity {
   @RelationId((item: PurchaseItem) => item.product)
   @Column({ nullable: true })
   productId?: string;
+
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 20, nullable: false, default: 'product' })
+  itemType?: 'product' | 'rawMaterial';
+
+  @ManyToOne(() => RawMaterial, { onDelete: 'SET NULL', nullable: true })
+  rawMaterial?: RawMaterial;
+
+  @Index()
+  @RelationId((item: PurchaseItem) => item.rawMaterial)
+  @Column({ nullable: true })
+  rawMaterialId?: string;
+
+  @ManyToOne(() => RawMaterialCombination, { onDelete: 'RESTRICT', nullable: true })
+  rawMaterialCombination?: RawMaterialCombination;
+
+  @Index()
+  @RelationId((item: PurchaseItem) => item.rawMaterialCombination)
+  @Column({ nullable: true })
+  rawMaterialCombinationId?: string;
 
   @ManyToOne(() => ProductVariantOption, { onDelete: 'SET NULL', nullable: true })
   variant?: ProductVariantOption;
@@ -43,7 +64,7 @@ export class PurchaseItem extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 255, nullable: true })
   productName?: string;
 
-  @Column({ type: ENUM_COLUMN_TYPES.INT, nullable: false })
+  @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })
   quantity?: number;
 
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })

@@ -1,11 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class SaleItemDTO {
-  @ApiProperty({ type: String, required: true, example: 'product uuid' })
-  @IsNotEmpty()
+  @ApiProperty({ type: String, enum: ['product', 'rawMaterial'], required: false, default: 'product' })
+  @IsOptional()
+  @IsIn(['product', 'rawMaterial'])
+  itemType?: 'product' | 'rawMaterial';
+
+  @ApiProperty({ type: String, required: false, example: 'product uuid' })
+  @IsOptional()
   @IsString()
-  productId: string;
+  productId?: string;
+
+  @ApiProperty({ type: String, required: false, example: 'raw material uuid' })
+  @IsOptional()
+  @IsString()
+  rawMaterialId?: string;
+
+  @ApiProperty({ type: String, required: false, example: 'raw material combination uuid' })
+  @IsOptional()
+  @IsString()
+  rawMaterialCombinationId?: string;
 
   @ApiProperty({
     type: String,
@@ -25,6 +40,7 @@ export class SaleItemDTO {
   @ApiProperty({ type: Number, required: true, example: 5 })
   @IsNotEmpty()
   @IsNumber()
+  @Min(0.000001)
   quantity: number;
 
   // Unit price this sale is actually made at, entered by the user. A product
