@@ -52,7 +52,8 @@ export class RawMaterialService extends BaseService<RawMaterial> {
   }
 
   async updateRawMaterial(id: string, payload: Partial<RawMaterialCreateDTO>): Promise<RawMaterial> {
-    const { combinations, ...rawMaterialData } = payload;
+    const { combinations: submittedCombinations, ...rawMaterialData } = payload;
+    const combinations = submittedCombinations ?? undefined;
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -60,10 +61,13 @@ export class RawMaterialService extends BaseService<RawMaterial> {
     try {
       const rawMaterial = await queryRunner.manager.findOne(RawMaterial, {
         where: { id, isDeleted: false },
-        relations: { combinations: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!rawMaterial) throw new NotFoundException('Raw material not found');
+      rawMaterial.combinations = await queryRunner.manager.find(RawMaterialCombination, {
+        where: { rawMaterialId: id, isDeleted: false },
+        lock: { mode: 'pessimistic_write' },
+      });
       Object.assign(rawMaterial, rawMaterialData);
 
       if (combinations !== undefined) {
@@ -101,7 +105,7 @@ export class RawMaterialService extends BaseService<RawMaterial> {
           await queryRunner.manager.save(combination);
         }
 
-        this.applyAggregates(rawMaterial, saved);
+        if (saved.length) this.applyAggregates(rawMaterial, saved);
       }
 
       await queryRunner.manager.save(rawMaterial);
