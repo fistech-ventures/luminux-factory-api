@@ -28,6 +28,9 @@ export class Production extends BaseEntity {
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false })
   quantity?: number;
 
+  @Column({ type: ENUM_COLUMN_TYPES.VARCHAR, length: 20, nullable: false, default: 'pending' })
+  status?: 'pending' | 'approved';
+
   @Column({ type: ENUM_COLUMN_TYPES.FLOAT, nullable: false, default: 0 })
   otherCost?: number;
 

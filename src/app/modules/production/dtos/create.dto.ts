@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -94,6 +95,11 @@ export class CreateProductionDTO {
   @IsNumber()
   @Min(0)
   otherCost?: number;
+
+  @ApiProperty({ enum: ['pending', 'approved'], required: false })
+  @IsOptional()
+  @IsIn(['pending', 'approved'])
+  status?: 'pending' | 'approved';
 
   @ApiProperty({ type: [ProductionRawMaterialDTO] })
   @IsArray()

@@ -6,6 +6,7 @@ import { Product } from '../../product/entities/product.entity';
 import { RawMaterial } from '../../rawMaterial/entities/rawMaterial.entity';
 import { RawMaterialCombination } from '../../rawMaterial/entities/rawMaterialCombination.entity';
 import { CreateProductionDTO } from '../dtos/create.dto';
+import { UpdateProductionDTO } from '../dtos/update.dto';
 import { Production, IProductionRawMaterialSnapshot } from '../entities/production.entity';
 
 @Injectable()
@@ -18,6 +19,34 @@ export class ProductionService extends BaseService<Production> {
   }
 
   public readonly RELATIONS: FindOptionsRelations<Production> = { product: true };
+
+  async updateProduction(id: string, payload: UpdateProductionDTO): Promise<Production> {
+    const production = await this.findByIdBase(id, { relations: this.RELATIONS });
+    if (!production) {
+      throw new NotFoundException('Production record not found');
+    }
+
+    const quantity = Number(payload.quantity ?? production.quantity ?? 0);
+    const otherCost = Number(payload.otherCost ?? production.otherCost ?? 0);
+    const materialCost = (production.usedRawMaterials ?? []).reduce(
+      (sum, item) => sum + Number(item.totalCost ?? 0),
+      0,
+    );
+    const totalProductionCost = materialCost + otherCost;
+    const status = this.resolveStatus(otherCost, payload.status);
+
+    return this.updateOneBase(
+      id,
+      {
+        quantity,
+        otherCost,
+        status,
+        totalProductionCost,
+        productionCostPerUnit: quantity > 0 ? totalProductionCost / quantity : 0,
+      },
+      { relations: this.RELATIONS },
+    );
+  }
 
   async createProduction(payload: CreateProductionDTO): Promise<Production> {
     if (Boolean(payload.productId) === Boolean(payload.newProduct)) {
@@ -160,6 +189,7 @@ export class ProductionService extends BaseService<Production> {
       await queryRunner.manager.save(rawMaterials);
 
       const otherCost = Number(payload.otherCost) || 0;
+      const status = this.resolveStatus(otherCost, payload.status);
       const totalProductionCost = materialCost + otherCost;
       const productionCostPerUnit = totalProductionCost / payload.quantity;
       let product: Product;
@@ -210,6 +240,7 @@ export class ProductionService extends BaseService<Production> {
       const production = queryRunner.manager.create(Production, {
         productId: product.id,
         quantity: payload.quantity,
+        status,
         otherCost,
         totalProductionCost,
         productionCostPerUnit,
@@ -250,5 +281,13 @@ export class ProductionService extends BaseService<Production> {
     product.stock = updatedStock;
     product.sourcingPrice = updatedSourcingPrice;
     return manager.save(product);
+  }
+
+  private resolveStatus(
+    otherCost?: number | null,
+    fallbackStatus?: 'pending' | 'approved',
+  ): 'pending' | 'approved' {
+    if (fallbackStatus === 'pending' || fallbackStatus === 'approved') return fallbackStatus;
+    return Number(otherCost ?? 0) > 0 ? 'approved' : 'pending';
   }
 }

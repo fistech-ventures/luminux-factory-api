@@ -19,6 +19,11 @@ export class RawMaterialInternalController {
     return this.service.findAllBase(query, { relations: this.service.RELATIONS });
   }
 
+  @Get('inventory')
+  async findInventory(@Query() query: RawMaterialFilterDTO): Promise<SuccessResponse<RawMaterial[]>> {
+    return this.service.findInventory(query);
+  }
+
   @Get(':id')
   async findById(@Param('id') id: string): Promise<RawMaterial> {
     return this.service.findByIdBase(id, { relations: this.service.RELATIONS });

@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BaseService } from '@src/app/base';
-import { DataSource, FindOptionsRelations, Repository } from 'typeorm';
+import { SuccessResponse } from '@src/app/types';
+import { Brackets, DataSource, FindOptionsRelations, Repository } from 'typeorm';
 import { RawMaterialCreateDTO } from '../dtos/create.dto';
+import { RawMaterialFilterDTO } from '../dtos/filter.dto';
 import { RawMaterial } from '../entities/rawMaterial.entity';
 import { RawMaterialCombination } from '../entities/rawMaterialCombination.entity';
 
@@ -16,6 +18,54 @@ export class RawMaterialService extends BaseService<RawMaterial> {
   }
 
   public readonly RELATIONS: FindOptionsRelations<RawMaterial> = { combinations: true };
+
+  async findInventory(filters: RawMaterialFilterDTO): Promise<SuccessResponse<RawMaterial[]>> {
+    const page = Number(filters.page) || 1;
+    const limit = Number(filters.limit) || 20;
+    const skip = (page - 1) * limit;
+    const query = this._repo
+      .createQueryBuilder('rawMaterial')
+      .leftJoinAndSelect(
+        'rawMaterial.combinations',
+        'combinations',
+        'combinations.isDeleted = false AND combinations.stock > 0',
+      )
+      .where('rawMaterial.isDeleted = false')
+      .andWhere('rawMaterial.stock > 0')
+      .distinct(true);
+
+    if (filters.isActive !== undefined) {
+      query.andWhere('rawMaterial.isActive = :isActive', {
+        isActive: String(filters.isActive) === 'true',
+      });
+    }
+
+    if (filters.searchTerm?.trim()) {
+      const searchTerm = `%${filters.searchTerm.trim()}%`;
+      query.andWhere(
+        new Brackets((where) =>
+          where
+            .where('rawMaterial.title ILIKE :searchTerm')
+            .orWhere('combinations.title ILIKE :searchTerm')
+            .orWhere('combinations.code ILIKE :searchTerm'),
+        ),
+        { searchTerm },
+      );
+    }
+
+    const [rawMaterials, total] = await query
+      .orderBy('rawMaterial.createdAt', filters.sortOrder === 'ASC' ? 'ASC' : 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    return new SuccessResponse('Inventory fetched successfully', rawMaterials, {
+      total,
+      page,
+      limit,
+      skip,
+    });
+  }
 
   async createRawMaterial(payload: RawMaterialCreateDTO): Promise<RawMaterial> {
     const { combinations, ...rawMaterialData } = payload;
@@ -64,14 +114,14 @@ export class RawMaterialService extends BaseService<RawMaterial> {
         lock: { mode: 'pessimistic_write' },
       });
       if (!rawMaterial) throw new NotFoundException('Raw material not found');
-      rawMaterial.combinations = await queryRunner.manager.find(RawMaterialCombination, {
+      const currentCombinations = await queryRunner.manager.find(RawMaterialCombination, {
         where: { rawMaterialId: id, isDeleted: false },
         lock: { mode: 'pessimistic_write' },
       });
       Object.assign(rawMaterial, rawMaterialData);
 
       if (combinations !== undefined) {
-        const current = (rawMaterial.combinations ?? []).filter((combination) => !combination.isDeleted);
+        const current = currentCombinations.filter((combination) => !combination.isDeleted);
         const currentById = new Map(current.map((combination) => [combination.id, combination]));
         const submittedIds = new Set(combinations.map((combination) => combination.id).filter(Boolean));
         const saved: RawMaterialCombination[] = [];

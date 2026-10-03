@@ -80,10 +80,28 @@ export class DashboardService {
       this.summaryByDate(this.expenseRepo, 'amountSpent', 'date', today, today),
       this.dataSource
         .query(
-          // Soft-deleted products must not count towards the stock valuation.
+          // Value SKU-managed products at their own combination costs; simple products use parent cost.
           `SELECT COUNT(*)::int AS "count",
-                  COALESCE(SUM(p."stock" * p."sourcingPrice"), 0) AS "valuation"
+                  COALESCE(
+                    SUM(
+                      CASE
+                        WHEN sku_totals."skuCount" > 0 THEN sku_totals."valuation"
+                        ELSE p."stock" * p."sourcingPrice"
+                      END
+                    ),
+                    0
+                  ) AS "valuation"
            FROM "products" p
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*) AS "skuCount",
+                    COALESCE(
+                      SUM(sku."stockQuantity" * sku."sourcingPrice"),
+                      0
+                    ) AS "valuation"
+             FROM "product_variant_skus" sku
+             WHERE sku."productId" = p."id"
+               AND sku."isDeleted" = false
+           ) sku_totals ON true
            WHERE p."isActive" = true
              AND p."isDeleted" = false`,
         )
