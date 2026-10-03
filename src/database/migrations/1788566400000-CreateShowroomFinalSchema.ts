@@ -56,14 +56,14 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // ACL module
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "permission_types" (
+      CREATE TABLE IF NOT EXISTS "permission_types" (
         ${BASE_COLUMNS}
         "title" varchar(100) NOT NULL UNIQUE,
         PRIMARY KEY ("id")
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "permissions" (
+      CREATE TABLE IF NOT EXISTS "permissions" (
         ${BASE_COLUMNS}
         "title" varchar(100) NOT NULL UNIQUE,
         "permissionTypeId" uuid,
@@ -73,7 +73,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "roles" (
+      CREATE TABLE IF NOT EXISTS "roles" (
         ${BASE_COLUMNS}
         "title" varchar(100) NOT NULL UNIQUE,
         PRIMARY KEY ("id")
@@ -84,7 +84,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // User module
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "users" (
+      CREATE TABLE IF NOT EXISTS "users" (
         ${BASE_COLUMNS}
         "fullName" varchar(225),
         "gender" varchar(225),
@@ -100,7 +100,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "user_roles" (
+      CREATE TABLE IF NOT EXISTS "user_roles" (
         ${BASE_COLUMNS}
         "isDefault" boolean NOT NULL DEFAULT false,
         "roleId" uuid NOT NULL,
@@ -113,7 +113,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "role_permissions" (
+      CREATE TABLE IF NOT EXISTS "role_permissions" (
         ${BASE_COLUMNS}
         "roleId" uuid NOT NULL,
         "permissionId" uuid NOT NULL,
@@ -125,7 +125,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "user_profiles" (
+      CREATE TABLE IF NOT EXISTS "user_profiles" (
         ${BASE_COLUMNS}
         "isVerified" boolean DEFAULT false,
         "code" varchar(20) NOT NULL UNIQUE,
@@ -151,14 +151,14 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // Product module (variants / variant_options / products / product_variant_options)
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "variants" (
+      CREATE TABLE IF NOT EXISTS "variants" (
         ${BASE_COLUMNS}
         "title" varchar(256) NOT NULL UNIQUE,
         PRIMARY KEY ("id")
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "variant_options" (
+      CREATE TABLE IF NOT EXISTS "variant_options" (
         ${BASE_COLUMNS}
         "title" varchar(256) NOT NULL,
         "variantId" uuid NOT NULL,
@@ -168,7 +168,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "products" (
+      CREATE TABLE IF NOT EXISTS "products" (
         ${BASE_COLUMNS}
         "title" varchar(255) NOT NULL,
         "description" text,
@@ -186,7 +186,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "product_variant_options" (
+      CREATE TABLE IF NOT EXISTS "product_variant_options" (
         ${BASE_COLUMNS}
         "sku" varchar(256),
         "sellingPrice" double precision NOT NULL DEFAULT 0,
@@ -210,7 +210,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // Customers / Suppliers
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "customers" (
+      CREATE TABLE IF NOT EXISTS "customers" (
         ${BASE_COLUMNS}
         "name" varchar(255) NOT NULL,
         "customerType" varchar(10) NOT NULL DEFAULT 'B2C',
@@ -222,7 +222,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "suppliers" (
+      CREATE TABLE IF NOT EXISTS "suppliers" (
         ${BASE_COLUMNS}
         "companyName" varchar(255) NOT NULL,
         "contactPerson" varchar(255) NOT NULL,
@@ -237,7 +237,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // Purchase module
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "purchases" (
+      CREATE TABLE IF NOT EXISTS "purchases" (
         ${BASE_COLUMNS}
         "purchaseDate" date NOT NULL,
         "purchaseType" varchar(100) NOT NULL,
@@ -256,7 +256,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "purchase_items" (
+      CREATE TABLE IF NOT EXISTS "purchase_items" (
         ${BASE_COLUMNS}
         "purchaseId" uuid NOT NULL,
         "productId" uuid,
@@ -277,7 +277,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // Sales module
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "sales" (
+      CREATE TABLE IF NOT EXISTS "sales" (
         ${BASE_COLUMNS}
         "date" date NOT NULL,
         "customerId" uuid NOT NULL,
@@ -296,7 +296,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "sale_items" (
+      CREATE TABLE IF NOT EXISTS "sale_items" (
         ${BASE_COLUMNS}
         "saleId" uuid NOT NULL,
         "productId" uuid NOT NULL,
@@ -319,7 +319,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // Ledger / Expense
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "ledgers" (
+      CREATE TABLE IF NOT EXISTS "ledgers" (
         ${BASE_COLUMNS}
         "entityType" varchar(50) NOT NULL,
         "entityId" varchar(255) NOT NULL,
@@ -333,7 +333,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "expenses" (
+      CREATE TABLE IF NOT EXISTS "expenses" (
         ${BASE_COLUMNS}
         "date" date NOT NULL,
         "purpose" varchar(255) NOT NULL,
@@ -344,7 +344,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "payments" (
+      CREATE TABLE IF NOT EXISTS "payments" (
         ${BASE_COLUMNS}
         "paymentDate" date NOT NULL,
         "entityType" varchar(50) NOT NULL,
@@ -362,7 +362,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // Gallery / Global configs
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "gallery" (
+      CREATE TABLE IF NOT EXISTS "gallery" (
         ${BASE_COLUMNS}
         "title" varchar(255),
         "caption" varchar(255),
@@ -376,7 +376,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "global_configs" (
+      CREATE TABLE IF NOT EXISTS "global_configs" (
         ${BASE_COLUMNS}
         "name" varchar(255),
         "initialName" varchar(255),
@@ -398,7 +398,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "analytics_configs" (
+      CREATE TABLE IF NOT EXISTS "analytics_configs" (
         ${BASE_COLUMNS}
         "trackingScripts" jsonb DEFAULT '[]'::jsonb,
         PRIMARY KEY ("id")
@@ -409,7 +409,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // Notification module
     // ------------------------------------------------------------------
     await queryRunner.query(`
-      CREATE TABLE "sms_gateways" (
+      CREATE TABLE IF NOT EXISTS "sms_gateways" (
         ${BASE_COLUMNS}
         "title" varchar(225) NOT NULL,
         "accountType" varchar(50) NOT NULL DEFAULT 'default',
@@ -423,7 +423,7 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
       );
     `);
     await queryRunner.query(`
-      CREATE TABLE "email_gateways" (
+      CREATE TABLE IF NOT EXISTS "email_gateways" (
         ${BASE_COLUMNS}
         "title" varchar(225) NOT NULL,
         "accountType" varchar(50) NOT NULL DEFAULT 'default',
@@ -445,20 +445,20 @@ export class CreateShowroomFinalSchema1788566400000 implements MigrationInterfac
     // ------------------------------------------------------------------
     // Indexes matching the entity @Index decorators
     // ------------------------------------------------------------------
-    await queryRunner.query(`CREATE INDEX "IDX_product_variant_options_productId" ON "product_variant_options" ("productId");`);
-    await queryRunner.query(`CREATE INDEX "IDX_product_variant_options_variantId" ON "product_variant_options" ("variantId");`);
-    await queryRunner.query(`CREATE INDEX "IDX_product_variant_options_variantOptionId" ON "product_variant_options" ("variantOptionId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_product_variant_options_productId" ON "product_variant_options" ("productId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_product_variant_options_variantId" ON "product_variant_options" ("variantId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_product_variant_options_variantOptionId" ON "product_variant_options" ("variantOptionId");`);
 
-    await queryRunner.query(`CREATE INDEX "IDX_purchases_supplierId" ON "purchases" ("supplierId");`);
-    await queryRunner.query(`CREATE INDEX "IDX_purchases_purchasedById" ON "purchases" ("purchasedById");`);
-    await queryRunner.query(`CREATE INDEX "IDX_purchase_items_purchaseId" ON "purchase_items" ("purchaseId");`);
-    await queryRunner.query(`CREATE INDEX "IDX_purchase_items_productId" ON "purchase_items" ("productId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_purchases_supplierId" ON "purchases" ("supplierId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_purchases_purchasedById" ON "purchases" ("purchasedById");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_purchase_items_purchaseId" ON "purchase_items" ("purchaseId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_purchase_items_productId" ON "purchase_items" ("productId");`);
 
-    await queryRunner.query(`CREATE INDEX "IDX_sales_customerId" ON "sales" ("customerId");`);
-    await queryRunner.query(`CREATE INDEX "IDX_sales_soldById" ON "sales" ("soldById");`);
-    await queryRunner.query(`CREATE INDEX "IDX_sale_items_saleId" ON "sale_items" ("saleId");`);
-    await queryRunner.query(`CREATE INDEX "IDX_sale_items_productId" ON "sale_items" ("productId");`);
-    await queryRunner.query(`CREATE INDEX "IDX_sale_items_variantId" ON "sale_items" ("variantId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_sales_customerId" ON "sales" ("customerId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_sales_soldById" ON "sales" ("soldById");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_sale_items_saleId" ON "sale_items" ("saleId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_sale_items_productId" ON "sale_items" ("productId");`);
+    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_sale_items_variantId" ON "sale_items" ("variantId");`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
